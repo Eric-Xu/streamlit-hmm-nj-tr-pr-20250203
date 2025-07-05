@@ -6,7 +6,7 @@ from streamlit_agraph import Config, Edge, Node, agraph
 
 from constants.css import BLACK_HEX, BLUE_HEX, GREEN_HEX, GREEN_LIGHT_HEX
 from constants.dataset import END_DATE, LOCATION, START_DATE
-from pipelines.prep_data_borrower_to_loans import prep_data
+from pipelines.prep_data_borrower_loans import prep_data
 from utils.gui import show_st_h1, show_st_h2
 from utils.io import load_json
 
@@ -25,7 +25,7 @@ def _get_selected_data(
     return selected_data
 
 
-def _show_df_b2loans(selected_data: List[Dict]) -> None:
+def _show_df_borrower_loans(selected_data: List[Dict]) -> None:
     if selected_data:
         # Convert the list of dictionaries to a pandas DataFrame for better display
         df = pd.DataFrame(selected_data)
@@ -88,7 +88,7 @@ def _scale_loan_amounts(
     return {amt: scale(amt) for amt in loan_amounts}
 
 
-def _show_network_graph_b2loans(selected_data: List[Dict]) -> None:
+def _show_network_graph_borrower_loans(selected_data: List[Dict]) -> None:
     nodes, edges = [], []
     seen_borrowers: Set = set()
     # Compute scaling for loan amounts
@@ -156,7 +156,7 @@ def _show_network_graph_b2loans(selected_data: List[Dict]) -> None:
         f"""
         **Legend:** 
         Blue represents borrowers. 
-        Green represents loans, sizes are proportional to loan values. 
+        Green represents loans; Shape sizes are proportional to loan values. 
         Arrows connect a borrower to their loans.
         """
     )
@@ -177,7 +177,7 @@ def _show_slider_loans_per_borrower(prepped_data: List[Dict]) -> Tuple[int, int]
 
     st.markdown("#### Loans-Per-Borrower")
     user_min_num_loans, user_max_num_loans = st.slider(
-        "Select borrowers by adjusting the range for number of loans-per-borrower.",
+        "**Select borrowers by adjusting the range for number of loans-per-borrower.**",
         min_value=0,
         max_value=max_num_loans,
         value=(slider_default_min, slider_default_max),
@@ -187,7 +187,7 @@ def _show_slider_loans_per_borrower(prepped_data: List[Dict]) -> Tuple[int, int]
     return user_min_num_loans, user_max_num_loans
 
 
-def st_page_b2loans():
+def st_page_borrower_loans():
     show_st_h1("Borrower Activity")
     show_st_h2(LOCATION, w_divider=True)
 
@@ -211,10 +211,10 @@ def st_page_b2loans():
     )
 
     st.write("")
-    _show_df_b2loans(selected_data)
+    _show_df_borrower_loans(selected_data)
 
     st.write("")
-    _show_network_graph_b2loans(selected_data)
+    _show_network_graph_borrower_loans(selected_data)
 
 
-st_page_b2loans()
+st_page_borrower_loans()

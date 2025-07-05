@@ -4,9 +4,9 @@ from pathlib import Path
 import streamlit as st
 from streamlit.navigation.page import StreamlitPage
 
-from constants.dataset import LOCATION
 from constants.file import (
-    BORROWER_TO_LOANS_PAGE_FILE,
+    BORROWER_LENDERS_PAGE_FILE,
+    BORROWER_LOANS_PAGE_FILE,
     CSS_DIR,
     CSS_FILE,
     LOAN_ANALYSIS_PAGE_FILE,
@@ -27,21 +27,26 @@ def load_css() -> None:
 
 
 def setup_page_navigation() -> StreamlitPage:
-    borrower_activity_page = st.Page(
-        os.path.join(PAGE_DIR, BORROWER_TO_LOANS_PAGE_FILE),
-        title=LOCATION,
-        icon=":material/map:",
-        default=True,
-    )
     loan_analysis_page = st.Page(
         os.path.join(PAGE_DIR, LOAN_ANALYSIS_PAGE_FILE),
         title="Loan Amount",
         icon=":material/bar_chart:",
+        default=True,
+    )
+    borrower_loans_page = st.Page(
+        os.path.join(PAGE_DIR, BORROWER_LOANS_PAGE_FILE),
+        title="Borrowers & Loans",
+        icon=":material/scatter_plot:",
+    )
+    borrower_lenders_page = st.Page(
+        os.path.join(PAGE_DIR, BORROWER_LENDERS_PAGE_FILE),
+        title="Borrowers & Lenders",
+        icon=":material/scatter_plot:",
     )
 
     pages = {
-        "Borrower Activity": [borrower_activity_page],
         "Loan Analysis": [loan_analysis_page],
+        "Borrower Activity": [borrower_loans_page, borrower_lenders_page],
     }
     pg: StreamlitPage = st.navigation(pages)
 

@@ -7,7 +7,8 @@ CSS_FILE = "styles.css"
 # --- APP PAGES ---
 PAGE_DIR = "views"
 
-BORROWER_TO_LOANS_PAGE_FILE = "borrower_to_loans_page.py"
+BORROWER_LENDERS_PAGE_FILE = "borrower_lenders_page.py"
+BORROWER_LOANS_PAGE_FILE = "borrower_loans_page.py"
 LOAN_ANALYSIS_PAGE_FILE = "loan_analysis_page.py"
 
 

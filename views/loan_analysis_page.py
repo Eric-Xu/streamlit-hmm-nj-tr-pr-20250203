@@ -1,13 +1,25 @@
-from typing import Dict, List
+from typing import Dict, List, Tuple
 
 import pandas as pd
 import streamlit as st
 
 from constants.css import GREEN_HEX
 from constants.dataset import END_DATE, LOCATION, START_DATE
-from pipelines.prep_data_borrower_to_loans import prep_data
+from pipelines.prep_data_borrower_loans import prep_data
 from utils.gui import show_st_h1, show_st_h2
 from utils.io import load_json
+
+
+def _get_selected_data(
+    prepped_data: List[Dict], user_min_loan_amount: int, user_max_loan_amount: int
+) -> List[Dict]:
+    selected_data: List[Dict] = list()
+    for borrower_activity in prepped_data:
+        loan_amount: int = int(borrower_activity.get("loanAmount", 0))
+        if loan_amount >= user_min_loan_amount and loan_amount <= user_max_loan_amount:
+            selected_data.append(borrower_activity)
+
+    return selected_data
 
 
 def _show_loan_amount_bar_chart(prepped_data: List[Dict]) -> None:
@@ -51,6 +63,22 @@ def _show_loan_amount_bar_chart(prepped_data: List[Dict]) -> None:
         st.metric("Highest Loan", f"${max(amounts):,.0f}")
 
 
+def _show_slider_loan_amount(prepped_data: List[Dict]) -> Tuple[int, int]:
+    max_loan_amount: int = max(int(item.get("loanAmount", 0)) for item in prepped_data)
+
+    slider_default_min = int(max_loan_amount * 0.1)
+    slider_default_max = int(max_loan_amount * 0.9)
+
+    user_min_loan_amount, user_max_loan_amount = st.slider(
+        "**Select borrowers by adjusting the minimum and maximum loan amounts.**",
+        min_value=0,
+        max_value=max_loan_amount,
+        value=(slider_default_min, slider_default_max),
+    )
+
+    return user_min_loan_amount, user_max_loan_amount
+
+
 def st_page_loan_amount():
     show_st_h1("Loan Analysis")
     show_st_h2(LOCATION, w_divider=True)
@@ -62,11 +90,18 @@ def st_page_loan_amount():
         """
     )
     st.write("")
+    st.write("")
 
     prepped_data_file_path: str = prep_data()
     prepped_data: List[Dict] = load_json(prepped_data_file_path)
 
-    _show_loan_amount_bar_chart(prepped_data)
+    user_min_loan_amount, user_max_loan_amount = _show_slider_loan_amount(prepped_data)
+
+    selected_data: List[Dict] = _get_selected_data(
+        prepped_data, user_min_loan_amount, user_max_loan_amount
+    )
+
+    _show_loan_amount_bar_chart(selected_data)
 
 
 st_page_loan_amount()
