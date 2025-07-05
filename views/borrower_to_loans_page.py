@@ -1,9 +1,10 @@
 from typing import Dict, List, Set, Tuple
 
+import pandas as pd
 import streamlit as st
 from streamlit_agraph import Config, Edge, Node, agraph
 
-from constants.css import BLACK_HEX, PURPLE_HEX, RED_HEX
+from constants.css import BLACK_HEX, BLUE_HEX, GREEN_HEX, GREEN_LIGHT_HEX
 from constants.dataset import END_DATE, LOCATION, START_DATE
 from pipelines.prep_data_borrower_to_loans import prep_data
 from utils.gui import show_st_h1, show_st_h2
@@ -27,8 +28,6 @@ def _get_selected_data(
 def _show_df_b2loans(selected_data: List[Dict]) -> None:
     if selected_data:
         # Convert the list of dictionaries to a pandas DataFrame for better display
-        import pandas as pd
-
         df = pd.DataFrame(selected_data)
 
         # Remove saleValue and isCorporate columns
@@ -111,7 +110,7 @@ def _show_network_graph_b2loans(selected_data: List[Dict]) -> None:
                     Node(
                         id=borrower_node_id,
                         label=borrower_name_value,
-                        color=PURPLE_HEX,
+                        color=BLUE_HEX,
                         labelColor=BLACK_HEX,
                         size=20,
                         borderWidth=0,
@@ -124,14 +123,23 @@ def _show_network_graph_b2loans(selected_data: List[Dict]) -> None:
                 Node(
                     id=loan_node_id,
                     label=None,
-                    color=RED_HEX,
+                    color=GREEN_HEX,
                     labelColor=BLACK_HEX,
-                    size=scaled_size_value,
+                    size=int(scaled_size_value),
                     borderWidth=0,
                 ),
             ]
         )
-        edges.extend([Edge(source=borrower_node_id, target=loan_node_id, width=5)])
+        edges.extend(
+            [
+                Edge(
+                    source=borrower_node_id,
+                    target=loan_node_id,
+                    color=GREEN_LIGHT_HEX,
+                    width=5,
+                )
+            ]
+        )
         seen_borrowers.add(borrower_name)
 
     config = Config(
@@ -147,8 +155,8 @@ def _show_network_graph_b2loans(selected_data: List[Dict]) -> None:
     st.info(
         f"""
         **Legend:** 
-        Purple represents borrowers. 
-        Red represents loans, sizes are proportional to loan values. 
+        Blue represents borrowers. 
+        Green represents loans, sizes are proportional to loan values. 
         Arrows connect a borrower to their loans.
         """
     )
@@ -187,10 +195,9 @@ def st_page_b2loans():
         f"""
         The following data shows all mortgages recorded between **{START_DATE}**
         and **{END_DATE}**.
-
-        
         """
     )
+    st.write("")
 
     prepped_data_file_path: str = prep_data()
     prepped_data: List[Dict] = load_json(prepped_data_file_path)
