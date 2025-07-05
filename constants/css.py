@@ -1,0 +1,4 @@
+BLACK_HEX = "#262730"
+PURPLE_HEX = "#803df5"
+RED_HEX = "#f63366"
+YELLOW_HEX = "#faca2b"
