@@ -22,27 +22,41 @@ def _get_selected_data(
     return selected_data
 
 
-def _show_loan_amount_bar_chart(prepped_data: List[Dict]) -> None:
-    """Display a bar chart of loan amounts ordered from highest to lowest."""
-    if not prepped_data:
+def _prep_borrower_loan_data(selected_data: List[Dict]) -> List[Dict]:
+    if not selected_data:
         st.info("No data available for the bar chart.")
-        return
+        return []
 
     # Extract loan amounts and create labels
-    loan_data = []
-    for i, activity in enumerate(prepped_data):
+    borrower_loan_data = []
+    borrower_counts = {}  # Track how many times each borrower appears
+
+    for i, activity in enumerate(selected_data):
         loan_amount = int(activity.get("loanAmount", 0))
         borrower_name = activity.get("buyerName", "N/A")
-        loan_data.append({"amount": loan_amount, "borrower": borrower_name, "index": i})
+
+        # Count occurrences of this borrower name
+        borrower_counts[borrower_name] = borrower_counts.get(borrower_name, 0) + 1
+
+        # Create unique label - only add index if borrower appears multiple times
+        if borrower_counts[borrower_name] > 1:
+            unique_label = f"{borrower_name}_{borrower_counts[borrower_name]}"
+        else:
+            unique_label = borrower_name
+
+        borrower_loan_data.append({"amount": loan_amount, "borrower": unique_label})
 
     # Sort by loan amount (highest to lowest)
-    loan_data.sort(key=lambda x: x["amount"], reverse=True)
+    borrower_loan_data.sort(key=lambda x: x["amount"], reverse=True)
 
-    # Prepare data for the chart
-    amounts = [item["amount"] for item in loan_data]
-    borrowers = [item["borrower"] for item in loan_data]
+    return borrower_loan_data
 
-    # Create the bar chart
+
+def _show_bar_chart(borrower_loan_data: List[Dict]) -> None:
+    """Display a bar chart of loan amounts ordered from highest to lowest."""
+    amounts = [item["amount"] for item in borrower_loan_data]
+    borrowers = [item["borrower"] for item in borrower_loan_data]
+
     st.markdown("#### Loan Amount Distribution")
     st.bar_chart(
         data=pd.DataFrame({"Loan Amount ($)": amounts, "Borrower": borrowers}),
@@ -53,7 +67,21 @@ def _show_loan_amount_bar_chart(prepped_data: List[Dict]) -> None:
         use_container_width=True,
     )
 
-    # Show summary statistics
+
+def _show_df(borrower_loan_data: List[Dict]) -> None:
+    amounts = [item["amount"] for item in borrower_loan_data]
+    borrowers = [item["borrower"] for item in borrower_loan_data]
+
+    # Format amounts as currency
+    formatted_amounts = [f"${amount:,.0f}" for amount in amounts]
+
+    df = pd.DataFrame({"Loan Amount": formatted_amounts, "Borrower": borrowers})
+    st.dataframe(df)
+
+
+def _show_summary_statistics(borrower_loan_data: List[Dict]) -> None:
+    amounts = [item["amount"] for item in borrower_loan_data]
+
     col1, col2, col3 = st.columns(3)
     with col1:
         st.metric("Total Loans", len(amounts))
@@ -63,7 +91,7 @@ def _show_loan_amount_bar_chart(prepped_data: List[Dict]) -> None:
         st.metric("Highest Loan", f"${max(amounts):,.0f}")
 
 
-def _show_slider_loan_amount(prepped_data: List[Dict]) -> Tuple[int, int]:
+def _show_slider(prepped_data: List[Dict]) -> Tuple[int, int]:
     max_loan_amount: int = max(int(item.get("loanAmount", 0)) for item in prepped_data)
 
     slider_default_min = int(max_loan_amount * 0.1)
@@ -95,13 +123,22 @@ def st_page_loan_amount():
     prepped_data_file_path: str = prep_data()
     prepped_data: List[Dict] = load_json(prepped_data_file_path)
 
-    user_min_loan_amount, user_max_loan_amount = _show_slider_loan_amount(prepped_data)
+    user_min_loan_amount, user_max_loan_amount = _show_slider(prepped_data)
 
     selected_data: List[Dict] = _get_selected_data(
         prepped_data, user_min_loan_amount, user_max_loan_amount
     )
 
-    _show_loan_amount_bar_chart(selected_data)
+    borrower_loan_data: List[Dict] = _prep_borrower_loan_data(selected_data)
+
+    _show_bar_chart(borrower_loan_data)
+
+    _show_summary_statistics(borrower_loan_data)
+
+    st.write("")
+    st.write("")
+
+    _show_df(borrower_loan_data)
 
 
 st_page_loan_amount()
