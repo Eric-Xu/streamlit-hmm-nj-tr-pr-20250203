@@ -5,6 +5,7 @@ import streamlit as st
 
 from constants.css import GREEN_HEX
 from constants.dataset import END_DATE, LOCATION, START_DATE
+from constants.session import LOAN_ANALYSIS_SLIDER_KEY
 from pipelines.prep_data_borrower_loans import prep_data
 from utils.gui import show_st_h1, show_st_h2
 from utils.io import load_json
@@ -69,22 +70,29 @@ def _show_bar_chart(borrower_loan_data: List[Dict]) -> None:
 
 
 def _show_df(borrower_loan_data: List[Dict]) -> None:
-    amounts = [item["amount"] for item in borrower_loan_data]
-    borrowers = [item["borrower"] for item in borrower_loan_data]
+    amounts: List[int] = [int(item["amount"]) for item in borrower_loan_data]
+    borrowers: List[str] = [item["borrower"] for item in borrower_loan_data]
+    df = pd.DataFrame({"Borrower Name": borrowers, "Loan Amount": amounts})
+    st.dataframe(
+        df,
+        use_container_width=True,
+        column_config={
+            "Borrower Name": st.column_config.TextColumn(
+                "Borrower Name", width="medium"
+            ),
+            "Loan Amount": st.column_config.NumberColumn(
+                "Loan Amount", width="small", format="dollar"
+            ),
+        },
+    )
 
-    # Format amounts as currency
-    formatted_amounts = [f"${amount:,.0f}" for amount in amounts]
 
-    df = pd.DataFrame({"Loan Amount": formatted_amounts, "Borrower Name": borrowers})
-    st.dataframe(df)
-
-
-def _show_summary_statistics(borrower_loan_data: List[Dict]) -> None:
+def _show_selected_data_metrics(borrower_loan_data: List[Dict]) -> None:
     amounts = [item["amount"] for item in borrower_loan_data]
 
     col1, col2, col3 = st.columns(3)
     with col1:
-        st.metric("Total Loans", len(amounts))
+        st.metric("Selected Loans", len(amounts))
     with col2:
         st.metric("Average Loan", f"${sum(amounts)/len(amounts):,.0f}")
     with col3:
@@ -97,13 +105,22 @@ def _show_slider(prepped_data: List[Dict]) -> Tuple[int, int]:
     slider_default_min = int(max_loan_amount * 0.1)
     slider_default_max = int(max_loan_amount * 0.9)
 
+    # Use session state to persist slider values
+    slider_key = LOAN_ANALYSIS_SLIDER_KEY
+    default_value = (slider_default_min, slider_default_max)
+    if slider_key not in st.session_state:
+        st.session_state[slider_key] = default_value
+
     user_min_loan_amount, user_max_loan_amount = st.slider(
         "**Select borrowers by adjusting the minimum and maximum loan amounts.**",
         min_value=0,
         max_value=max_loan_amount,
-        value=(slider_default_min, slider_default_max),
+        value=st.session_state[slider_key],
         step=10000,
     )
+
+    # Manually update the session state to preserve data across page visits.
+    st.session_state[slider_key] = (user_min_loan_amount, user_max_loan_amount)
 
     return user_min_loan_amount, user_max_loan_amount
 
@@ -134,7 +151,7 @@ def st_page_loan_amount():
 
     _show_bar_chart(borrower_loan_data)
 
-    _show_summary_statistics(borrower_loan_data)
+    _show_selected_data_metrics(borrower_loan_data)
 
     st.write("")
     st.write("")

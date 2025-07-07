@@ -6,6 +6,7 @@ from streamlit_agraph import Config, Edge, Node, agraph
 
 from constants.css import BLACK_HEX, BLUE_HEX, GREEN_HEX, GREEN_LIGHT_HEX
 from constants.dataset import END_DATE, LOCATION, START_DATE
+from constants.session import BORROWER_LOANS_SLIDER_KEY
 from pipelines.prep_data_borrower_loans import prep_data
 from utils.formatting import to_currency
 from utils.gui import show_st_h1, show_st_h2
@@ -27,25 +28,27 @@ def _get_selected_data(prepped_data: List[Dict], slider_data: Dict) -> List[Dict
     return selected_data
 
 
+def _show_all_data_metrics(df: pd.DataFrame) -> None:
+    total_borrowers: int = df["buyerName"].nunique()
+    avg_loan_amount: float = df["loanAmount"].mean()
+    max_loan_count: int = df.groupby("buyerName")["loanAmount"].count().max()
+
+    st.write("")
+    st.write("")
+    col1, col2, col3 = st.columns(3)
+    col1.metric("Total Borrowers", total_borrowers, border=True)
+    col2.metric("Highest # of Loans", max_loan_count, border=True)
+    col3.metric("Average Loan Amount", to_currency(avg_loan_amount), border=True)
+
+
 def _show_df(selected_data: List[Dict]) -> None:
     if selected_data:
         df = pd.DataFrame(selected_data)
 
         columns_to_keep = ["buyerName", "lenderName", "loanAmount"]
         df = df[columns_to_keep]
+        df["loanAmount"] = pd.to_numeric(df["loanAmount"], errors="coerce")
 
-        # Format the numeric columns for better readability
-        if "loanAmount" in df.columns:
-            df["loanAmount"] = df["loanAmount"].apply(
-                lambda x: (
-                    f"${float(x):,.0f}"
-                    if pd.notna(x)
-                    and str(x).replace(".", "").replace("-", "").isdigit()
-                    else "N/A"
-                )
-            )
-
-        # Display the table with pagination
         st.dataframe(
             df,
             use_container_width=True,
@@ -56,7 +59,9 @@ def _show_df(selected_data: List[Dict]) -> None:
                 "lenderName": st.column_config.TextColumn(
                     "Lender Name", width="medium"
                 ),
-                "loanAmount": st.column_config.TextColumn("Loan Amount", width="small"),
+                "loanAmount": st.column_config.NumberColumn(
+                    "Loan Amount", width="small", format="dollar"
+                ),
             },
         )
     else:
@@ -203,14 +208,22 @@ def _show_slider_loans_per_borrower(prepped_data: List[Dict]) -> Dict:
         value_min = slider_min + 1
         value_max = max_num_loans + 1
 
-    st.markdown("#### Loans-Per-Borrower")
+    # Use session state to persist slider values
+    slider_key = BORROWER_LOANS_SLIDER_KEY
+    default_value = (value_min, value_max)
+    if slider_key not in st.session_state:
+        st.session_state[slider_key] = default_value
+
     user_min_num_loans, user_max_num_loans = st.slider(
         "**Select borrowers by adjusting the range for number of loans-per-borrower.**",
         min_value=slider_min,
         max_value=slider_max,
-        value=(value_min, value_max),
+        value=st.session_state[slider_key],
         step=1,
     )
+
+    # Manually update the session state to preserve data across page visits.
+    st.session_state[slider_key] = (user_min_num_loans, user_max_num_loans)
 
     slider_data: Dict = {
         "user_min_num_loans": user_min_num_loans,
@@ -219,7 +232,7 @@ def _show_slider_loans_per_borrower(prepped_data: List[Dict]) -> Dict:
     return slider_data
 
 
-def _show_summary_statistics(selected_data: List[Dict]) -> None:
+def _show_selected_data_metrics(selected_data: List[Dict]) -> None:
     num_borrowers: int = len(set(d.get("buyerName", "") for d in selected_data))
     if num_borrowers == 0:
         avg_loans_per_borrower = 0
@@ -234,25 +247,62 @@ def _show_summary_statistics(selected_data: List[Dict]) -> None:
         avg_loan_amount = sum(loan_amounts) / len(loan_amounts) if loan_amounts else 0
 
     col1, col2, col3 = st.columns(3)
-    col1.metric("Total Borrowers", f"{num_borrowers}")
-    col2.metric("Average Loans-Per-Borrower", f"{int(round(avg_loans_per_borrower))}")
+    col1.metric("Selected Borrowers", f"{num_borrowers}")
+    col2.metric("Average # of Loans", f"{int(round(avg_loans_per_borrower))}")
     col3.metric("Average Loan Amount", to_currency(int(avg_loan_amount)))
+
+
+def _show_top_lists(df: pd.DataFrame) -> None:
+    top_count: List[str] = (
+        df.groupby("buyerName")["loanAmount"]
+        .count()
+        .sort_values(ascending=False)
+        .head(3)
+        .index.tolist()
+    )
+
+    top_avg: List[str] = (
+        df.groupby("buyerName")["loanAmount"]
+        .mean()
+        .sort_values(ascending=False)
+        .head(3)
+        .index.tolist()
+    )
+
+    st.markdown(
+        f"""
+        The following data comes from mortgages recorded between **{START_DATE}**
+        and **{END_DATE}**.
+
+        The top three borrowers based on the **number of loans** are:
+        1. {top_count[0] if len(top_count) > 0 else ""}
+        2. {top_count[1] if len(top_count) > 1 else ""}
+        3. {top_count[2] if len(top_count) > 2 else ""}
+
+        The top three borrowers based on the **average loan amount** are:
+        1. {top_avg[0] if len(top_avg) > 0 else ""}
+        2. {top_avg[1] if len(top_avg) > 1 else ""}
+        3. {top_avg[2] if len(top_avg) > 2 else ""}
+        """
+    )
 
 
 def st_page_borrower_loans():
     show_st_h1("Borrower Activity")
     show_st_h2(LOCATION, w_divider=True)
 
-    st.markdown(
-        f"""
-        The following data comes from mortgages recorded between **{START_DATE}**
-        and **{END_DATE}**.
-        """
-    )
-    st.write("")
-
     prepped_data_file_path: str = prep_data()
     prepped_data: List[Dict] = load_json(prepped_data_file_path)
+
+    df = pd.DataFrame(prepped_data)
+    df["loanAmount"] = pd.to_numeric(df["loanAmount"], errors="coerce")
+
+    _show_top_lists(df)
+
+    _show_all_data_metrics(df)
+
+    st.write("")
+    st.markdown("#### Loans-Per-Borrower")
 
     slider_data: Dict = _show_slider_loans_per_borrower(prepped_data)
 
@@ -263,7 +313,7 @@ def st_page_borrower_loans():
 
     st.write("")
     st.write("")
-    _show_summary_statistics(selected_data)
+    _show_selected_data_metrics(selected_data)
 
     st.write("")
     _show_network_graph_borrower_loans(selected_data)
