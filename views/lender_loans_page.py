@@ -4,14 +4,14 @@ import pandas as pd
 import streamlit as st
 from streamlit_agraph import Config, Edge, Node, agraph
 
-from constants.css import BLACK_HEX, BLUE_HEX, GREEN_HEX, GREEN_LIGHT_HEX
+from constants.css import BLACK_HEX, GREEN_HEX, GREEN_LIGHT_HEX, YELLOW_HEX
 from constants.dataset import END_DATE, LOCATION, START_DATE
 from pipelines.prep_data_borrower_loans import prep_data
 from utils.formatting import to_currency
 from utils.gui import show_st_h1, show_st_h2
 from utils.io import load_json
 
-HIDE_BORROWER_LABEL_THRESHOLD = 1
+HIDE_LENDER_LABEL_THRESHOLD = 4
 
 
 def _get_selected_data(prepped_data: List[Dict], slider_data: Dict) -> List[Dict]:
@@ -20,7 +20,7 @@ def _get_selected_data(prepped_data: List[Dict], slider_data: Dict) -> List[Dict
 
     selected_data: List[Dict] = list()
     for borrower_activity in prepped_data:
-        num_loans: int = borrower_activity.get("borrower_num_loans", 0)
+        num_loans: int = borrower_activity.get("lender_num_loans", 0)
         if num_loans >= user_min_num_loans and num_loans <= user_max_num_loans:
             selected_data.append(borrower_activity)
 
@@ -31,7 +31,7 @@ def _show_df(selected_data: List[Dict]) -> None:
     if selected_data:
         df = pd.DataFrame(selected_data)
 
-        columns_to_keep = ["buyerName", "lenderName", "loanAmount"]
+        columns_to_keep = ["lenderName", "buyerName", "loanAmount"]
         df = df[columns_to_keep]
 
         # Format the numeric columns for better readability
@@ -50,17 +50,17 @@ def _show_df(selected_data: List[Dict]) -> None:
             df,
             use_container_width=True,
             column_config={
-                "buyerName": st.column_config.TextColumn(
-                    "Borrower Name", width="medium"
-                ),
                 "lenderName": st.column_config.TextColumn(
                     "Lender Name", width="medium"
+                ),
+                "buyerName": st.column_config.TextColumn(
+                    "Borrower Name", width="medium"
                 ),
                 "loanAmount": st.column_config.TextColumn("Loan Amount", width="small"),
             },
         )
     else:
-        st.info("No borrower activity data available.")
+        st.info("No lender activity data available.")
 
 
 def _scale_loan_amounts(
@@ -84,47 +84,47 @@ def _scale_loan_amounts(
     return {amt: scale(amt) for amt in loan_amounts}
 
 
-def _show_network_graph_borrower_loans(selected_data: List[Dict]) -> None:
+def _show_network_graph(selected_data: List[Dict]) -> None:
     nodes, edges = [], []
-    borrower_index, loan_index = 1, 1
-    borrower_name_to_node_id: Dict[str, str] = dict()  # Map borrower name to node ID
+    lender_index, loan_index = 1, 1
+    lender_name_to_node_id: Dict[str, str] = dict()  # Map lender name to node ID
 
     loan_amount_to_scaled = _scale_loan_amounts(
         selected_data
     )  # Compute scaling for loan amounts
 
     # Create nodes and edges of the network graph
-    for borrower_activity in selected_data:
-        borrower_name: str = borrower_activity.get("buyerName", "N/A")
-        num_loans: int = borrower_activity.get("borrower_num_loans", 0)
-        borrower_node_title: str = f"Borrower: {borrower_name}"
-        borrower_name_value = (
-            borrower_name if num_loans > HIDE_BORROWER_LABEL_THRESHOLD else None
+    for lender_activity in selected_data:
+        lender_name: str = lender_activity.get("lenderName", "N/A")
+        num_loans: int = lender_activity.get("lender_num_loans", 0)
+        lender_node_title: str = f"Lender: {lender_name}"
+        lender_name_value = (
+            lender_name if num_loans > HIDE_LENDER_LABEL_THRESHOLD else None
         )
-        if borrower_name not in borrower_name_to_node_id:
-            borrower_node_id: str = f"borrower_{borrower_index}"
+        if lender_name not in lender_name_to_node_id:
+            lender_node_id: str = f"lender_{lender_index}"
             nodes.append(
                 Node(
-                    id=borrower_node_id,
-                    title=borrower_node_title,
-                    label=borrower_name_value,
-                    color=BLUE_HEX,
+                    id=lender_node_id,
+                    title=lender_node_title,
+                    label=lender_name_value,
+                    color=YELLOW_HEX,
                     labelColor=BLACK_HEX,
                     size=20,
                     borderWidth=0,
                     font={"size": 24},
                 )
             )
-            borrower_name_to_node_id[borrower_name] = borrower_node_id
-            borrower_index += 1  # Increment borrower index
+            lender_name_to_node_id[lender_name] = lender_node_id
+            lender_index += 1  # Increment lender index
 
-        lender_name: str = borrower_activity.get("lenderName", "N/A")
-        loan_amount: int = int(borrower_activity.get("loanAmount", 0))
+        borrower_name: str = lender_activity.get("buyerName", "N/A")
+        loan_amount: int = int(lender_activity.get("loanAmount", 0))
         loan_currency_amount: str = to_currency(loan_amount)
         scaled_size_value: float = loan_amount_to_scaled[loan_amount]
 
         loan_node_id: str = f"loan_{loan_index}"
-        loan_node_title: str = f"{loan_currency_amount} loan by {lender_name}"
+        loan_node_title: str = f"{loan_currency_amount} loan to {borrower_name}"
         new_loan_node: Node = Node(
             id=loan_node_id,
             title=loan_node_title,
@@ -135,7 +135,7 @@ def _show_network_graph_borrower_loans(selected_data: List[Dict]) -> None:
             borderWidth=0,
         )
 
-        source_id = borrower_name_to_node_id[borrower_name]
+        source_id = lender_name_to_node_id[lender_name]
         target_id = loan_node_id
         new_edge_node: Edge = Edge(
             source=source_id,
@@ -161,17 +161,17 @@ def _show_network_graph_borrower_loans(selected_data: List[Dict]) -> None:
     st.info(
         f"""
         **Legend:** 
-        Blue represents borrowers. 
+        Yellow represents lenders. 
         Green represents loans; Shape sizes are proportional to loan values. 
-        Arrows connect a borrower to their loans.
+        Arrows connect a lender to their loans.
         """
     )
 
 
-def _show_slider_loans_per_borrower(prepped_data: List[Dict]) -> Dict:
+def _show_slider_loans_per_lender(prepped_data: List[Dict]) -> Dict:
     if prepped_data:
         max_num_loans: int = max(
-            item.get("borrower_num_loans", 0) for item in prepped_data
+            item.get("lender_num_loans", 0) for item in prepped_data
         )
     else:
         max_num_loans = 0
@@ -203,9 +203,9 @@ def _show_slider_loans_per_borrower(prepped_data: List[Dict]) -> Dict:
         value_min = slider_min + 1
         value_max = max_num_loans + 1
 
-    st.markdown("#### Loans-Per-Borrower")
+    st.markdown("#### Loans-Per-Lender")
     user_min_num_loans, user_max_num_loans = st.slider(
-        "**Select borrowers by adjusting the range for number of loans-per-borrower.**",
+        "**Select lenders by adjusting the range for number of loans-per-lender.**",
         min_value=slider_min,
         max_value=slider_max,
         value=(value_min, value_max),
@@ -220,12 +220,12 @@ def _show_slider_loans_per_borrower(prepped_data: List[Dict]) -> Dict:
 
 
 def _show_summary_statistics(selected_data: List[Dict]) -> None:
-    num_borrowers: int = len(set(d.get("buyerName", "") for d in selected_data))
-    if num_borrowers == 0:
-        avg_loans_per_borrower = 0
+    num_lenders: int = len(set(d.get("lenderName", "") for d in selected_data))
+    if num_lenders == 0:
+        avg_loans_per_lender = 0
         avg_loan_amount = 0
     else:
-        avg_loans_per_borrower = len(selected_data) / num_borrowers
+        avg_loans_per_lender = len(selected_data) / num_lenders
         loan_amounts = [
             float(d.get("loanAmount", 0))
             for d in selected_data
@@ -234,13 +234,13 @@ def _show_summary_statistics(selected_data: List[Dict]) -> None:
         avg_loan_amount = sum(loan_amounts) / len(loan_amounts) if loan_amounts else 0
 
     col1, col2, col3 = st.columns(3)
-    col1.metric("Total Borrowers", f"{num_borrowers}")
-    col2.metric("Average Loans-Per-Borrower", f"{int(round(avg_loans_per_borrower))}")
+    col1.metric("Total Lenders", f"{num_lenders}")
+    col2.metric("Average Loans-Per-Lender", f"{int(round(avg_loans_per_lender))}")
     col3.metric("Average Loan Amount", to_currency(int(avg_loan_amount)))
 
 
-def st_page_borrower_loans():
-    show_st_h1("Borrower Activity")
+def st_page_lender_loans():
+    show_st_h1("Lender Activity")
     show_st_h2(LOCATION, w_divider=True)
 
     st.markdown(
@@ -254,7 +254,7 @@ def st_page_borrower_loans():
     prepped_data_file_path: str = prep_data()
     prepped_data: List[Dict] = load_json(prepped_data_file_path)
 
-    slider_data: Dict = _show_slider_loans_per_borrower(prepped_data)
+    slider_data: Dict = _show_slider_loans_per_lender(prepped_data)
 
     selected_data: List[Dict] = _get_selected_data(prepped_data, slider_data)
 
@@ -266,7 +266,7 @@ def st_page_borrower_loans():
     _show_summary_statistics(selected_data)
 
     st.write("")
-    _show_network_graph_borrower_loans(selected_data)
+    _show_network_graph(selected_data)
 
 
-st_page_borrower_loans()
+st_page_lender_loans()

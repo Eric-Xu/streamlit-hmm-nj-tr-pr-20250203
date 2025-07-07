@@ -7,8 +7,11 @@ from streamlit.navigation.page import StreamlitPage
 from constants.file import (
     BORROWER_LENDERS_PAGE_FILE,
     BORROWER_LOANS_PAGE_FILE,
+    BORROWER_TIMELINE_PAGE_FILE,
     CSS_DIR,
     CSS_FILE,
+    LENDER_LOANS_PAGE_FILE,
+    LENDER_TIMELINE_PAGE_FILE,
     LOAN_ANALYSIS_PAGE_FILE,
     PAGE_DIR,
 )
@@ -38,15 +41,36 @@ def setup_page_navigation() -> StreamlitPage:
         title="Borrowers & Loans",
         icon=":material/scatter_plot:",
     )
+    borrower_timeline_page = st.Page(
+        os.path.join(PAGE_DIR, BORROWER_TIMELINE_PAGE_FILE),
+        title="Borrower Timeline",
+        icon=":material/calendar_month:",
+    )
     borrower_lenders_page = st.Page(
         os.path.join(PAGE_DIR, BORROWER_LENDERS_PAGE_FILE),
         title="Borrowers & Lenders",
         icon=":material/scatter_plot:",
     )
+    lender_loans_page = st.Page(
+        os.path.join(PAGE_DIR, LENDER_LOANS_PAGE_FILE),
+        title="Lenders & Loans",
+        icon=":material/scatter_plot:",
+    )
+    lender_timeline_page = st.Page(
+        os.path.join(PAGE_DIR, LENDER_TIMELINE_PAGE_FILE),
+        title="Lender Timeline",
+        icon=":material/calendar_month:",
+    )
 
     pages = {
         "Loan Analysis": [loan_analysis_page],
-        "Borrower Activity": [borrower_loans_page, borrower_lenders_page],
+        "Borrower Activity": [
+            borrower_loans_page,
+            borrower_timeline_page,
+            borrower_lenders_page,  # remove
+        ],
+        "Lender Activity": [lender_loans_page, lender_timeline_page],
+        # "Borrower-Lender": [relationships_page, relationship_timeline_page]
     }
     pg: StreamlitPage = st.navigation(pages)
 

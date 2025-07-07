@@ -26,10 +26,26 @@ def _load_data() -> DataFrame:
 def _transform_data(borrower_activities_df: DataFrame) -> DataFrame:
     df_sorted = borrower_activities_df.sort_values(by="buyerName").copy()
 
-    # Add a new column "num_loans" counting occurrences of each buyerName
-    df_sorted["num_loans"] = df_sorted["buyerName"].map(
+    # buyer_num_loans, buyer_num_lenders, lender_num_loans, lender_num_buyers
+
+    # Add a new column "borrower_num_loans" counting occurrences of each buyerName
+    df_sorted["borrower_num_loans"] = df_sorted["buyerName"].map(
         df_sorted["buyerName"].value_counts()
     )
+
+    # Add a new column "lender_num_loans" counting occurrences of each buyerName
+    df_sorted["lender_num_loans"] = df_sorted["lenderName"].map(
+        df_sorted["lenderName"].value_counts()
+    )
+
+    # Add a new column "borrower_num_lenders" counting unique lenderName for each buyerName
+    lender_counts = df_sorted.groupby("buyerName")["lenderName"].nunique()
+    df_sorted["borrower_num_lenders"] = df_sorted["buyerName"].map(lender_counts)
+
+    # Add a new column "lender_num_borrowers" counting unique buyerName for each lenderName
+    borrower_counts = df_sorted.groupby("lenderName")["buyerName"].nunique()
+    df_sorted["lender_num_borrowers"] = df_sorted["lenderName"].map(borrower_counts)
+
     return df_sorted
 
 

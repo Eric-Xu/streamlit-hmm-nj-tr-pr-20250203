@@ -75,7 +75,7 @@ def _show_df(borrower_loan_data: List[Dict]) -> None:
     # Format amounts as currency
     formatted_amounts = [f"${amount:,.0f}" for amount in amounts]
 
-    df = pd.DataFrame({"Loan Amount": formatted_amounts, "Borrower": borrowers})
+    df = pd.DataFrame({"Loan Amount": formatted_amounts, "Borrower Name": borrowers})
     st.dataframe(df)
 
 
@@ -102,6 +102,7 @@ def _show_slider(prepped_data: List[Dict]) -> Tuple[int, int]:
         min_value=0,
         max_value=max_loan_amount,
         value=(slider_default_min, slider_default_max),
+        step=10000,
     )
 
     return user_min_loan_amount, user_max_loan_amount
@@ -113,7 +114,7 @@ def st_page_loan_amount():
 
     st.markdown(
         f"""
-        The following data shows all mortgages recorded between **{START_DATE}**
+        The following data comes from mortgages recorded between **{START_DATE}**
         and **{END_DATE}**.
         """
     )
