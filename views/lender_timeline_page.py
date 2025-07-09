@@ -1,5 +1,5 @@
 from datetime import date, datetime
-from typing import Dict, List
+from typing import Dict, List, Tuple
 
 import pandas as pd
 import streamlit as st
@@ -11,6 +11,142 @@ from pipelines.prep_data_borrower_loans import prep_data
 from utils.formatting import to_currency
 from utils.gui import show_st_h1, show_st_h2
 from utils.io import load_json
+
+"""
+TODO:
+- Change repeat borrower nodes to PURPLE_HEX
+- Reduce node "mass" value as number of borrowers increase.
+- Set node "physics" to False for really high number of borrowers like "Kiavi".
+- Add metrics for "% of repeat borrowers"
+"""
+
+
+def _create_borrower_loan_relationships(
+    selected_data: List[Dict], nodes: List, edges: List
+) -> Tuple[List, List]:
+    borrower_ids_added: set = set()
+    loan_ids_added: set = set()
+    for data in selected_data:
+        record_id: str = str(data.get("id"))
+        borrower_id: str = f"borrower_{record_id}"
+        borrower_name: str = data.get("buyerName", "N/A")
+        borrower_node_title: str = f"Borrower: {borrower_name}"
+
+        # Create borrower nodes based on unique borrower ids
+        if borrower_id not in borrower_ids_added:
+            nodes.append(
+                Node(
+                    id=borrower_id,
+                    title=borrower_node_title,
+                    label=None,
+                    color=RED_HEX,
+                    labelColor=BLACK_HEX,
+                    size=20,
+                    font={"size": 24},
+                    borderWidth=0,
+                    mass=0.3,
+                    fixed={"x": True},
+                    x=400,
+                )
+            )
+            borrower_ids_added.add(borrower_id)
+
+        # Create loan nodes
+        loan_amount: int = int(data.get("loanAmount", 0))
+        recording_date: str = data.get("recordingDate", "N/A")
+        loan_currency_amount: str = to_currency(loan_amount)
+        loan_id: str = f"loan_{record_id}"
+        loan_node_title: str = f"{loan_currency_amount} loan to {borrower_name}"
+        if loan_id not in loan_ids_added:
+            nodes.append(
+                Node(
+                    id=loan_id,
+                    title=loan_node_title,
+                    label=None,
+                    color=YELLOW_HEX,
+                    labelColor=BLACK_HEX,
+                    size=20,
+                    # font={"size": 24},
+                    borderWidth=0,
+                )
+            )
+            loan_ids_added.add(loan_id)
+
+        # Create borrower-loan relationships
+        source_id = borrower_id
+        target_id = loan_id
+        edges.append(
+            Edge(
+                source=source_id,
+                target=target_id,
+                color=GREEN_LIGHT_HEX,
+                width=5,
+            )
+        )
+    return nodes, edges
+
+
+def _create_loan_date_relationships(
+    selected_data: List[Dict], nodes: List, edges: List
+) -> Tuple[List, List]:
+    latest_date: str | None = _get_latest_date(selected_data)
+    last_12_months: List[date] = _get_last_12_months(latest_date)
+    date_to_month_node_label: Dict[date, str] = _get_date_to_month_node_label(
+        last_12_months
+    )
+    month_node_ids = {}
+    # Create month nodes in chronological order
+    for i, first_of_month in enumerate(sorted(last_12_months)):
+        month_node_label: str | None = date_to_month_node_label.get(first_of_month)
+        if not month_node_label:
+            continue
+        month_node_id = f"month_{i+1}"
+        month_node_ids[first_of_month] = month_node_id
+        label_value: str = f"  {month_node_label}  "
+        x_value = 0
+        y_value = i * 100
+        nodes.append(
+            Node(
+                id=month_node_id,
+                label=label_value,
+                shape="circle",
+                color=GREEN_HEX,
+                labelColor=BLACK_HEX,
+                borderWidth=0,
+                physics=False,
+                fixed={"x": True, "y": True},
+                x=x_value,
+                y=y_value,
+            )
+        )
+
+    # Create loan-to-month relationships with error handling
+    for data in selected_data:
+        try:
+            record_id: str = str(data.get("id"))
+            recording_date: str = data.get("recordingDate", None)
+            if not recording_date:
+                continue
+            first_of_month = _get_first_of_month(recording_date)
+            if first_of_month not in month_node_ids:
+                continue
+            loan_id: str = f"loan_{record_id}"
+            source_id = loan_id
+            target_id = month_node_ids[first_of_month]
+            if not source_id or not target_id:
+                continue
+            edges.append(
+                Edge(
+                    source=source_id,
+                    target=target_id,
+                    color=GREEN_LIGHT_HEX,
+                    width=5,
+                )
+            )
+        except Exception as e:
+            # Optionally log the error or pass
+            pass
+    return nodes, edges
 
 
 def _get_date_to_month_node_label(last_12_months: List[date]) -> Dict[date, str]:
@@ -90,127 +226,8 @@ def _show_network_graph(selected_data: List[Dict]) -> None:
         return
 
     nodes, edges = [], []
-    borrower_name_to_node_id: Dict[str, str] = dict()
-    loan_identifier_to_node_id: Dict[str, str] = dict()
-
-    # Create borrower and loan relationships
-    for idx, data in enumerate(selected_data):
-        borrower_name: str = data.get("buyerName", "N/A")
-        borrower_node_title: str = f"Borrower: {borrower_name}"
-
-        # Create borrower nodes based on unique borrower names
-        if borrower_name not in borrower_name_to_node_id:
-            borrower_node_id: str = f"borrower_{len(borrower_name_to_node_id) + 1}"
-            nodes.append(
-                Node(
-                    id=borrower_node_id,
-                    title=borrower_node_title,
-                    label=None,
-                    color=RED_HEX,
-                    labelColor=BLACK_HEX,
-                    size=20,
-                    font={"size": 24},
-                    borderWidth=0,
-                    mass=0.3,
-                    fixed={"x": True},
-                    x=400,
-                )
-            )
-            borrower_name_to_node_id[borrower_name] = borrower_node_id
-
-        # Create loan nodes
-        loan_amount: int = int(data.get("loanAmount", 0))
-        recording_date: str = data.get("recordingDate", "N/A")
-        loan_currency_amount: str = to_currency(loan_amount)
-        # Make loan_identifier unique by including the index
-        loan_identifier: str = (
-            f"{recording_date}_{loan_amount}_{idx}"  # TODO replace logic after adding ID column to prepped_data
-        )
-        loan_node_id: str = f"loan_{idx+1}"
-        loan_identifier_to_node_id[loan_identifier] = loan_node_id
-        loan_node_title: str = f"{loan_currency_amount} loan to {borrower_name}"
-        nodes.append(
-            Node(
-                id=loan_node_id,
-                title=loan_node_title,
-                label=None,
-                color=YELLOW_HEX,
-                labelColor=BLACK_HEX,
-                size=20,
-                # font={"size": 24},
-                borderWidth=0,
-            )
-        )
-
-        # Create borrower-loan relationships
-        source_id = borrower_name_to_node_id[borrower_name]
-        target_id = loan_node_id
-        edges.append(
-            Edge(
-                source=source_id,
-                target=target_id,
-                color=GREEN_LIGHT_HEX,
-                width=5,
-            )
-        )
-
-    # Create loan and recording date relationships.
-    latest_date: str | None = _get_latest_date(selected_data)
-    last_12_months: List[date] = _get_last_12_months(latest_date)
-    date_to_month_node_label: Dict[date, str] = _get_date_to_month_node_label(
-        last_12_months
-    )
-    month_node_ids = {}
-    # Create month nodes in chronological order
-    for i, first_of_month in enumerate(sorted(last_12_months)):
-        month_node_label: str | None = date_to_month_node_label.get(first_of_month)
-        if not month_node_label:
-            continue
-        month_node_id = f"month_{i+1}"
-        month_node_ids[first_of_month] = month_node_id
-        label_value: str = f"  {month_node_label}  "
-        x_value = 0
-        y_value = i * 100
-        nodes.append(
-            Node(
-                id=month_node_id,
-                label=label_value,
-                shape="circle",
-                color=GREEN_HEX,
-                labelColor=BLACK_HEX,
-                borderWidth=0,
-                physics=False,
-                fixed={"x": True, "y": True},
-                x=x_value,
-                y=y_value,
-            )
-        )
-    # Create loan-to-month relationships with error handling
-    for idx, data in enumerate(selected_data):
-        try:
-            recording_date: str = data.get("recordingDate", None)
-            if not recording_date:
-                continue
-            first_of_month = _get_first_of_month(recording_date)
-            if first_of_month not in month_node_ids:
-                continue
-            loan_amount: int = int(data.get("loanAmount", 0))
-            loan_identifier: str = f"{recording_date}_{loan_amount}_{idx}"
-            source_id = loan_identifier_to_node_id.get(loan_identifier)
-            target_id = month_node_ids[first_of_month]
-            if not source_id or not target_id:
-                continue
-            edges.append(
-                Edge(
-                    source=source_id,
-                    target=target_id,
-                    color=GREEN_LIGHT_HEX,
-                    width=5,
-                )
-            )
-        except Exception as e:
-            # Optionally log the error or pass
-            pass
+    nodes, edges = _create_borrower_loan_relationships(selected_data, nodes, edges)
+    nodes, edges = _create_loan_date_relationships(selected_data, nodes, edges)
 
     # Create the network graph
     config = Config(
