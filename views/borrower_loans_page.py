@@ -1,4 +1,4 @@
-from typing import Dict, List
+from typing import Dict, List, Tuple
 
 import pandas as pd
 import streamlit as st
@@ -12,6 +12,73 @@ from utils.gui import show_st_h1, show_st_h2
 from utils.io import load_json
 
 HIDE_BORROWER_LABEL_THRESHOLD = 1
+
+
+def _create_borrower_loan_relationships(
+    selected_data: List[Dict], nodes: List, edges: List
+) -> Tuple[List, List]:
+    borrower_name_to_node_id: Dict[str, str] = dict()  # Map borrower name to node ID
+
+    loan_amount_to_scaled = _scale_loan_amounts(
+        selected_data
+    )  # Compute scaling for loan amounts
+
+    # Create nodes and edges of the network graph
+    for data in selected_data:
+        record_id: str = str(data.get("id"))
+        borrower_name: str = data.get("buyerName", "N/A")
+        num_loans: int = data.get("borrower_num_loans", 0)
+        borrower_node_title: str = f"Borrower: {borrower_name}"
+        borrower_name_value = (
+            borrower_name if num_loans > HIDE_BORROWER_LABEL_THRESHOLD else None
+        )
+        # Only create new borrower nodes based on the borrower name.
+        if borrower_name not in borrower_name_to_node_id:
+            borrower_node_id: str = f"borrower_{record_id}"
+            nodes.append(
+                Node(
+                    id=borrower_node_id,
+                    title=borrower_node_title,
+                    label=borrower_name_value,
+                    color=BLUE_HEX,
+                    labelColor=BLACK_HEX,
+                    size=20,
+                    borderWidth=0,
+                    font={"size": 24},
+                )
+            )
+            borrower_name_to_node_id[borrower_name] = borrower_node_id
+
+        lender_name: str = data.get("lenderName", "N/A")
+        loan_amount: int = int(data.get("loanAmount", 0))
+        loan_currency_amount: str = to_currency(loan_amount)
+        scaled_size_value: float = loan_amount_to_scaled[loan_amount]
+
+        loan_node_id: str = f"loan_{record_id}"
+        loan_node_title: str = f"{loan_currency_amount} loan by {lender_name}"
+        new_loan_node: Node = Node(
+            id=loan_node_id,
+            title=loan_node_title,
+            label=None,
+            color=GREEN_HEX,
+            labelColor=BLACK_HEX,
+            size=int(scaled_size_value),
+            borderWidth=0,
+        )
+
+        source_id = borrower_name_to_node_id[borrower_name]
+        target_id = loan_node_id
+        new_edge_node: Edge = Edge(
+            source=source_id,
+            target=target_id,
+            color=GREEN_LIGHT_HEX,
+            width=5,
+        )
+
+        nodes.append(new_loan_node)
+        edges.append(new_edge_node)
+
+    return nodes, edges
 
 
 def _get_selected_data(prepped_data: List[Dict], slider_data: Dict) -> List[Dict]:
@@ -88,69 +155,9 @@ def _scale_loan_amounts(
     return {amt: scale(amt) for amt in loan_amounts}
 
 
-def _show_network_graph_borrower_loans(selected_data: List[Dict]) -> None:
+def _show_network_graph(selected_data: List[Dict]) -> None:
     nodes, edges = [], []
-    borrower_index, loan_index = 1, 1
-    borrower_name_to_node_id: Dict[str, str] = dict()  # Map borrower name to node ID
-
-    loan_amount_to_scaled = _scale_loan_amounts(
-        selected_data
-    )  # Compute scaling for loan amounts
-
-    # Create nodes and edges of the network graph
-    for borrower_activity in selected_data:
-        borrower_name: str = borrower_activity.get("buyerName", "N/A")
-        num_loans: int = borrower_activity.get("borrower_num_loans", 0)
-        borrower_node_title: str = f"Borrower: {borrower_name}"
-        borrower_name_value = (
-            borrower_name if num_loans > HIDE_BORROWER_LABEL_THRESHOLD else None
-        )
-        if borrower_name not in borrower_name_to_node_id:
-            borrower_node_id: str = f"borrower_{borrower_index}"
-            nodes.append(
-                Node(
-                    id=borrower_node_id,
-                    title=borrower_node_title,
-                    label=borrower_name_value,
-                    color=BLUE_HEX,
-                    labelColor=BLACK_HEX,
-                    size=20,
-                    borderWidth=0,
-                    font={"size": 24},
-                )
-            )
-            borrower_name_to_node_id[borrower_name] = borrower_node_id
-            borrower_index += 1  # Increment borrower index
-
-        lender_name: str = borrower_activity.get("lenderName", "N/A")
-        loan_amount: int = int(borrower_activity.get("loanAmount", 0))
-        loan_currency_amount: str = to_currency(loan_amount)
-        scaled_size_value: float = loan_amount_to_scaled[loan_amount]
-
-        loan_node_id: str = f"loan_{loan_index}"
-        loan_node_title: str = f"{loan_currency_amount} loan by {lender_name}"
-        new_loan_node: Node = Node(
-            id=loan_node_id,
-            title=loan_node_title,
-            label=None,
-            color=GREEN_HEX,
-            labelColor=BLACK_HEX,
-            size=int(scaled_size_value),
-            borderWidth=0,
-        )
-
-        source_id = borrower_name_to_node_id[borrower_name]
-        target_id = loan_node_id
-        new_edge_node: Edge = Edge(
-            source=source_id,
-            target=target_id,
-            color=GREEN_LIGHT_HEX,
-            width=5,
-        )
-
-        nodes.append(new_loan_node)
-        edges.append(new_edge_node)
-        loan_index += 1  # Increment loan index
+    nodes, edges = _create_borrower_loan_relationships(selected_data, nodes, edges)
 
     # Create the network graph
     config = Config(
@@ -297,7 +304,7 @@ def render_borrower_loans_page():
     _show_selected_data_metrics(selected_data)
 
     st.write("")
-    _show_network_graph_borrower_loans(selected_data)
+    _show_network_graph(selected_data)
 
 
 render_borrower_loans_page()
