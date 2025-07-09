@@ -132,21 +132,12 @@ def _show_slider(prepped_data: List[Dict]) -> Dict:
         max_num_lenders = 0
 
     # Use a tiered filter to improve rendering speed
-    if max_num_lenders > 40:
-        slider_min = 4
+    if max_num_lenders > 20:
+        offset = int(max_num_lenders / 10)
+        slider_min = offset
         slider_max = max_num_lenders
-        value_min = slider_min + 4
-        value_max = max_num_lenders - 4
-    elif max_num_lenders > 30:
-        slider_min = 3
-        slider_max = max_num_lenders
-        value_min = slider_min + 3
-        value_max = max_num_lenders - 3
-    elif max_num_lenders > 20:
-        slider_min = 2
-        slider_max = max_num_lenders
-        value_min = slider_min + 2
-        value_max = max_num_lenders - 2
+        value_min = slider_min + offset
+        value_max = max_num_lenders - offset
     elif max_num_lenders > 10:
         slider_min = 1
         slider_max = max_num_lenders
@@ -174,7 +165,7 @@ def _show_slider(prepped_data: List[Dict]) -> Dict:
     return slider_data
 
 
-def st_page_borrower_lenders():
+def render_borrower_lenders_page():
     show_st_h1("Borrower Activity")
     show_st_h2(LOCATION, w_divider=True)
 
@@ -226,4 +217,4 @@ def st_page_borrower_lenders():
     # st.dataframe(filtered_df)
 
 
-st_page_borrower_lenders()
+render_borrower_lenders_page()

@@ -6,7 +6,6 @@ from streamlit_agraph import Config, Edge, Node, agraph
 
 from constants.css import BLACK_HEX, BLUE_HEX, GREEN_HEX, GREEN_LIGHT_HEX
 from constants.dataset import END_DATE, LOCATION, START_DATE
-from constants.session import BORROWER_LOANS_SLIDER_KEY
 from pipelines.prep_data_borrower_loans import prep_data
 from utils.formatting import to_currency
 from utils.gui import show_st_h1, show_st_h2
@@ -182,21 +181,12 @@ def _show_slider_loans_per_borrower(prepped_data: List[Dict]) -> Dict:
         max_num_loans = 0
 
     # Use a tiered filter to improve rendering speed
-    if max_num_loans > 40:
-        slider_min = 4
+    if max_num_loans > 20:
+        offset = int(max_num_loans / 10)
+        slider_min = offset
         slider_max = max_num_loans
-        value_min = slider_min + 4
-        value_max = max_num_loans - 4
-    elif max_num_loans > 30:
-        slider_min = 3
-        slider_max = max_num_loans
-        value_min = slider_min + 3
-        value_max = max_num_loans - 3
-    elif max_num_loans > 20:
-        slider_min = 2
-        slider_max = max_num_loans
-        value_min = slider_min + 2
-        value_max = max_num_loans - 2
+        value_min = slider_min + offset
+        value_max = max_num_loans - offset
     elif max_num_loans > 10:
         slider_min = 1
         slider_max = max_num_loans
@@ -208,22 +198,13 @@ def _show_slider_loans_per_borrower(prepped_data: List[Dict]) -> Dict:
         value_min = slider_min + 1
         value_max = max_num_loans + 1
 
-    # Use session state to persist slider values
-    slider_key = BORROWER_LOANS_SLIDER_KEY
-    default_value = (value_min, value_max)
-    if slider_key not in st.session_state:
-        st.session_state[slider_key] = default_value
-
     user_min_num_loans, user_max_num_loans = st.slider(
         "**Select borrowers by adjusting the range for number of loans-per-borrower.**",
         min_value=slider_min,
         max_value=slider_max,
-        value=st.session_state[slider_key],
+        value=(value_min, value_max),
         step=1,
     )
-
-    # Manually update the session state to preserve data across page visits.
-    st.session_state[slider_key] = (user_min_num_loans, user_max_num_loans)
 
     slider_data: Dict = {
         "user_min_num_loans": user_min_num_loans,
@@ -287,7 +268,7 @@ def _show_top_lists(df: pd.DataFrame) -> None:
     )
 
 
-def st_page_borrower_loans():
+def render_borrower_loans_page():
     show_st_h1("Borrower Activity")
     show_st_h2(LOCATION, w_divider=True)
 
@@ -319,4 +300,4 @@ def st_page_borrower_loans():
     _show_network_graph_borrower_loans(selected_data)
 
 
-st_page_borrower_loans()
+render_borrower_loans_page()
