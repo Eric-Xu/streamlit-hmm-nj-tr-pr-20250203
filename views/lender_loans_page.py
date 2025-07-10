@@ -174,10 +174,10 @@ def _show_network_graph(selected_data: List[Dict]) -> None:
 
     st.info(
         f"""
-        **Legend:** 
-        Yellow represents lenders. 
-        Green represents loans; Shape sizes are proportional to loan values. 
-        Arrows connect a lender to their loans.
+        **How to Interpret the Graph**\n
+        Yellow represents lenders, and green represents loans.
+        Shape sizes are proportional to loan values.
+        Arrows connect each lender to their respective loans.
         """
     )
 
@@ -209,7 +209,7 @@ def _show_slider_loans_per_lender(prepped_data: List[Dict]) -> Dict:
         value_max = max_num_loans + 1
 
     user_min_num_loans, user_max_num_loans = st.slider(
-        "**Select lenders by adjusting the range for number of loans-per-lender.**",
+        "**Select lenders by adjusting the range for the number of loans per lender.**",
         min_value=slider_min,
         max_value=slider_max,
         value=(value_min, value_max),
@@ -243,7 +243,7 @@ def _show_selected_data_metrics(selected_data: List[Dict]) -> None:
     col3.metric("Average Loan Amount", to_currency(int(avg_loan_amount)))
 
 
-def _show_top_lists(df: pd.DataFrame) -> None:
+def _show_introduction(df: pd.DataFrame) -> None:
     top_count_series = (
         df.groupby("lenderName")["loanAmount"].count().sort_values(ascending=False)
     )
@@ -281,7 +281,7 @@ def render_lender_loans_page():
     df = pd.DataFrame(prepped_data)
     df["loanAmount"] = pd.to_numeric(df["loanAmount"], errors="coerce")
 
-    _show_top_lists(df)
+    _show_introduction(df)
 
     _show_all_data_metrics(df)
 

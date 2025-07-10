@@ -86,6 +86,25 @@ def _show_df(borrower_loan_data: List[Dict]) -> None:
     )
 
 
+def _show_introduction(prepped_data: List[Dict]) -> None:
+    total_loans: int = len(prepped_data)
+    loan_amounts = [int(item.get("loanAmount", 0)) for item in prepped_data]
+    avg_loan_amount: float = sum(loan_amounts) / total_loans if total_loans > 0 else 0
+    unique_borrowers: int = len(set(item.get("buyerName", "") for item in prepped_data))
+    unique_lenders: int = len(set(item.get("lenderName", "") for item in prepped_data))
+
+    st.markdown(
+        f"""
+        The following data comes from mortgages recorded between **{START_DATE}**
+        and **{END_DATE}**.
+
+        There are **{total_loans}** loans in total, with an average amount of **${avg_loan_amount:,.0f}**. 
+        
+        These loans involve **{unique_borrowers}** borrowers and **{unique_lenders}** lenders.
+        """
+    )
+
+
 def _show_selected_data_metrics(borrower_loan_data: List[Dict]) -> None:
     amounts = [item["amount"] for item in borrower_loan_data]
 
@@ -105,7 +124,7 @@ def _show_slider(prepped_data: List[Dict]) -> Tuple[int, int]:
     slider_default_max = int(max_loan_amount * 0.9)
 
     user_min_loan_amount, user_max_loan_amount = st.slider(
-        "**Select borrowers by adjusting the minimum and maximum loan amounts.**",
+        "**Select loans by adjusting the minimum and maximum loan amounts.**",
         min_value=0,
         max_value=max_loan_amount,
         value=(slider_default_min, slider_default_max),
@@ -119,18 +138,13 @@ def render_loan_analysis_page():
     show_st_h1("Loan Analysis")
     show_st_h2(LOCATION, w_divider=True)
 
-    st.markdown(
-        f"""
-        The following data comes from mortgages recorded between **{START_DATE}**
-        and **{END_DATE}**.
-        """
-    )
-    st.write("")
-    st.write("")
-
     prepped_data_file_path: str = prep_data()
     prepped_data: List[Dict] = load_json(prepped_data_file_path)
 
+    _show_introduction(prepped_data)
+
+    st.write("")
+    st.write("")
     user_min_loan_amount, user_max_loan_amount = _show_slider(prepped_data)
 
     selected_data: List[Dict] = _get_selected_data(

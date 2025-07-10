@@ -18,6 +18,7 @@ TODO:
 - Reduce node "mass" value as number of borrowers increase.
 - Set node "physics" to False for really high number of borrowers like "Kiavi".
 - Add metrics for "% of repeat borrowers"
+- Change month node to always start from the START_DATE. (??)
 """
 
 
@@ -26,6 +27,11 @@ def _create_borrower_loan_relationships(
 ) -> Tuple[List, List]:
     borrower_ids_added: set = set()
     loan_ids_added: set = set()
+
+    unique_borrowers: int = _get_unique_borrowers(selected_data)
+    mass: float = _get_scaled_mass(unique_borrowers)
+    physics: bool = False if mass == 0.0 else True
+
     for data in selected_data:
         record_id: str = str(data.get("id"))
         borrower_id: str = f"borrower_{record_id}"
@@ -42,11 +48,11 @@ def _create_borrower_loan_relationships(
                     color=RED_HEX,
                     labelColor=BLACK_HEX,
                     size=20,
-                    font={"size": 24},
                     borderWidth=0,
-                    mass=0.3,
+                    mass=mass,
+                    physics=physics,
                     fixed={"x": True},
-                    x=400,
+                    x=0,
                 )
             )
             borrower_ids_added.add(borrower_id)
@@ -56,7 +62,7 @@ def _create_borrower_loan_relationships(
         recording_date: str = data.get("recordingDate", "N/A")
         loan_currency_amount: str = to_currency(loan_amount)
         loan_id: str = f"loan_{record_id}"
-        loan_node_title: str = f"{loan_currency_amount} loan to {borrower_name}"
+        loan_node_title: str = f"{loan_currency_amount} loan on {recording_date}"
         if loan_id not in loan_ids_added:
             nodes.append(
                 Node(
@@ -66,7 +72,6 @@ def _create_borrower_loan_relationships(
                     color=YELLOW_HEX,
                     labelColor=BLACK_HEX,
                     size=20,
-                    # font={"size": 24},
                     borderWidth=0,
                 )
             )
@@ -89,25 +94,30 @@ def _create_borrower_loan_relationships(
 def _create_loan_date_relationships(
     selected_data: List[Dict], nodes: List, edges: List
 ) -> Tuple[List, List]:
+    unique_borrowers: int = _get_unique_borrowers(selected_data)
+    y_scaling_factor: int = _get_y_scaling_factor(unique_borrowers)
+
     latest_date: str | None = _get_latest_date(selected_data)
     last_12_months: List[date] = _get_last_12_months(latest_date)
     date_to_month_node_label: Dict[date, str] = _get_date_to_month_node_label(
         last_12_months
     )
     month_node_ids = {}
-    # Create month nodes in chronological order
-    for i, first_of_month in enumerate(sorted(last_12_months)):
+    # Create month nodes in reverse chronological order
+    for i, first_of_month in enumerate(sorted(last_12_months, reverse=True)):
         month_node_label: str | None = date_to_month_node_label.get(first_of_month)
         if not month_node_label:
             continue
+        month_node_title: str = month_node_label
         month_node_id = f"month_{i+1}"
         month_node_ids[first_of_month] = month_node_id
         label_value: str = f"  {month_node_label}  "
-        x_value = 0
-        y_value = i * 100
+        x_value = 400
+        y_value = i * y_scaling_factor
         nodes.append(
             Node(
                 id=month_node_id,
+                title=month_node_title,
                 label=label_value,
                 shape="circle",
                 color=GREEN_HEX,
@@ -191,8 +201,54 @@ def _get_latest_date(selected_data: List[Dict]) -> str | None:
     return max(dates)
 
 
+def _get_scaled_mass(unique_borrowers: int) -> float:
+    # Use a tiered approach to calculate the mass value
+    if unique_borrowers > 40:
+        mass = 0.1
+    elif unique_borrowers > 30:
+        mass = 0.2
+    elif unique_borrowers > 20:
+        mass = 0.4
+    elif unique_borrowers > 10:
+        mass = 0.8
+    else:
+        mass = 1.0
+
+    st.write(unique_borrowers)  # TODO delete me
+    st.write(mass)  # TODO delete me
+    return mass
+
+
 def _get_selected_data(prepped_data: List[Dict], lender: str) -> List[Dict]:
     return [d for d in prepped_data if d.get("lenderName", "") == lender]
+
+
+def _get_unique_borrowers(selected_data: List[Dict]) -> int:
+    borrower_names = set()
+    for d in selected_data:
+        borrower_name = d.get("buyerName")
+        if borrower_name:
+            borrower_names.add(borrower_name)
+    total_borrowers: int = len(borrower_names)
+
+    return total_borrowers
+
+
+def _get_y_scaling_factor(unique_borrowers: int) -> int:
+    if unique_borrowers > 100:
+        y_scaling_factor = 300
+    elif unique_borrowers > 80:
+        y_scaling_factor = 250
+    elif unique_borrowers > 60:
+        y_scaling_factor = 200
+    elif unique_borrowers > 40:
+        y_scaling_factor = 150
+    else:
+        y_scaling_factor = 100
+
+    st.write(unique_borrowers)  # TODO delete me
+    st.write(y_scaling_factor)  # TODO delete me
+    return y_scaling_factor
 
 
 def _show_df(selected_data: List[Dict]) -> None:
@@ -221,6 +277,15 @@ def _show_df(selected_data: List[Dict]) -> None:
     )
 
 
+def _show_introduction() -> None:
+    st.markdown(
+        f"""
+        The following data comes from mortgages recorded between **{START_DATE}**
+        and **{END_DATE}**.
+        """
+    )
+
+
 def _show_network_graph(selected_data: List[Dict]) -> None:
     if not selected_data:
         return
@@ -231,7 +296,7 @@ def _show_network_graph(selected_data: List[Dict]) -> None:
 
     # Create the network graph
     config = Config(
-        physics=True,
+        height=1000,
         directed=True,
         nodeHighlightBehavior=True,
         node={"labelProperty": "label"},
@@ -241,10 +306,10 @@ def _show_network_graph(selected_data: List[Dict]) -> None:
 
     st.info(
         f"""
-        **Legend:** 
-        Yellow represents lenders. 
-        Green represents loans; Shape sizes are proportional to loan values. 
-        Arrows connect a lender to their loans.
+        **How to Interpret the Graph**\n
+        Yellow represents lenders, and green represents loans. 
+        Shape sizes are proportional to loan values. 
+        Arrows connect each lender to their respective loans.
         """
     )
 
@@ -267,12 +332,7 @@ def render_lender_timeline_page():
     prepped_data_file_path: str = prep_data()
     prepped_data: List[Dict] = load_json(prepped_data_file_path)
 
-    st.markdown(
-        f"""
-        The following data comes from mortgages recorded between **{START_DATE}**
-        and **{END_DATE}**.
-        """
-    )
+    _show_introduction()
 
     selected_lender: str = _show_selectbox(prepped_data)
 

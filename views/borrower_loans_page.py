@@ -11,7 +11,8 @@ from utils.formatting import to_currency
 from utils.gui import show_st_h1, show_st_h2
 from utils.io import load_json
 
-HIDE_BORROWER_LABEL_THRESHOLD = 1
+HIDE_LABEL_THRESHOLD_PCT = 0.4
+MIN_HIDE_LABEL_THRESHOLD = 1
 
 
 def _create_borrower_loan_relationships(
@@ -23,6 +24,10 @@ def _create_borrower_loan_relationships(
         selected_data
     )  # Compute scaling for loan amounts
 
+    hide_label_threshold: int = _get_hide_label_threshold(
+        selected_data
+    )  # Compute dynamic threshold value
+
     # Create nodes and edges of the network graph
     for data in selected_data:
         record_id: str = str(data.get("id"))
@@ -30,7 +35,7 @@ def _create_borrower_loan_relationships(
         num_loans: int = data.get("borrower_num_loans", 0)
         borrower_node_title: str = f"Borrower: {borrower_name}"
         borrower_name_value = (
-            borrower_name if num_loans > HIDE_BORROWER_LABEL_THRESHOLD else None
+            borrower_name if num_loans > hide_label_threshold else None
         )
         # Only create new borrower nodes based on the borrower name.
         if borrower_name not in borrower_name_to_node_id:
@@ -79,6 +84,20 @@ def _create_borrower_loan_relationships(
         edges.append(new_edge_node)
 
     return nodes, edges
+
+
+def _get_hide_label_threshold(selected_data: List[Dict]) -> int:
+    max_num_loans: int = max(
+        [int(d.get("borrower_num_loans", 0)) for d in selected_data]
+    )
+    hide_label_threshold: int = int(max_num_loans * HIDE_LABEL_THRESHOLD_PCT)
+    hide_label_threshold = (
+        hide_label_threshold
+        if hide_label_threshold > MIN_HIDE_LABEL_THRESHOLD
+        else MIN_HIDE_LABEL_THRESHOLD
+    )
+
+    return hide_label_threshold
 
 
 def _get_selected_data(prepped_data: List[Dict], slider_data: Dict) -> List[Dict]:
@@ -171,10 +190,10 @@ def _show_network_graph(selected_data: List[Dict]) -> None:
 
     st.info(
         f"""
-        **Legend:** 
-        Blue represents borrowers. 
-        Green represents loans; Shape sizes are proportional to loan values. 
-        Arrows connect a borrower to their loans.
+        **How to Interpret the Graph**\n
+        Blue represents borrowers, and green represents loans. 
+        Shape sizes are proportional to loan values. 
+        Arrows connect each borrower to their respective loans.
         """
     )
 
@@ -188,17 +207,18 @@ def _show_slider_loans_per_borrower(prepped_data: List[Dict]) -> Dict:
         max_num_loans = 0
 
     # Use a tiered filter to improve rendering speed
-    if max_num_loans > 20:
+    if max_num_loans > 40:
         offset = int(max_num_loans / 10)
         slider_min = offset
         slider_max = max_num_loans
-        value_min = slider_min + offset
-        value_max = max_num_loans - offset
+        value_min = offset * 2
+        value_max = offset * 4
     elif max_num_loans > 10:
-        slider_min = 1
+        offset = int(max_num_loans / 10)
+        slider_min = offset
         slider_max = max_num_loans
-        value_min = slider_min + 1
-        value_max = max_num_loans - 1
+        value_min = offset * 2
+        value_max = 10
     else:
         slider_min = 1
         slider_max = max_num_loans + 1
@@ -206,7 +226,7 @@ def _show_slider_loans_per_borrower(prepped_data: List[Dict]) -> Dict:
         value_max = max_num_loans + 1
 
     user_min_num_loans, user_max_num_loans = st.slider(
-        "**Select borrowers by adjusting the range for number of loans-per-borrower.**",
+        "**Select borrowers by adjusting the range for the number of loans per borrower.**",
         min_value=slider_min,
         max_value=slider_max,
         value=(value_min, value_max),
@@ -240,7 +260,7 @@ def _show_selected_data_metrics(selected_data: List[Dict]) -> None:
     col3.metric("Average Loan Amount", to_currency(int(avg_loan_amount)))
 
 
-def _show_top_lists(df: pd.DataFrame) -> None:
+def _show_introduction(df: pd.DataFrame) -> None:
     top_count: List[str] = (
         df.groupby("buyerName")["loanAmount"]
         .count()
@@ -285,7 +305,7 @@ def render_borrower_loans_page():
     df = pd.DataFrame(prepped_data)
     df["loanAmount"] = pd.to_numeric(df["loanAmount"], errors="coerce")
 
-    _show_top_lists(df)
+    _show_introduction(df)
 
     _show_all_data_metrics(df)
 
