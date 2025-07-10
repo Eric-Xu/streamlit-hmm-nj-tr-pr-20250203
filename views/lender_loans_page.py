@@ -255,8 +255,9 @@ def _show_introduction(df: pd.DataFrame) -> None:
 
     st.markdown(
         f"""
-        The following data comes from mortgages recorded between **{START_DATE}**
-        and **{END_DATE}**.
+        View all loans used to purchase property in the given location. 
+        Discover the most active lenders and examine their loan portfolios 
+        by both volume and loan size.
 
         The top three lenders based on the **number of loans** are:
         1. {top_count[0] if len(top_count) > 0 else ""}
@@ -267,6 +268,11 @@ def _show_introduction(df: pd.DataFrame) -> None:
         1. {top_avg[0] if len(top_avg) > 0 else ""}
         2. {top_avg[1] if len(top_avg) > 1 else ""}
         3. {top_avg[2] if len(top_avg) > 2 else ""}
+
+        To get started, adjust the slider below to filter lenders based on how 
+        many loans they have funded.
+
+        This data covers loans recorded from **{START_DATE}** to **{END_DATE}**.
         """
     )
 

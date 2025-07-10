@@ -28,18 +28,18 @@ def _create_borrower_loan_relationships(
         selected_data
     )  # Compute dynamic threshold value
 
-    # Create nodes and edges of the network graph
     for data in selected_data:
         record_id: str = str(data.get("id"))
+        borrower_node_id: str = f"borrower_{record_id}"
         borrower_name: str = data.get("buyerName", "N/A")
         num_loans: int = data.get("borrower_num_loans", 0)
         borrower_node_title: str = f"Borrower: {borrower_name}"
         borrower_name_value = (
             borrower_name if num_loans > hide_label_threshold else None
         )
+
         # Only create new borrower nodes based on the borrower name.
         if borrower_name not in borrower_name_to_node_id:
-            borrower_node_id: str = f"borrower_{record_id}"
             nodes.append(
                 Node(
                     id=borrower_node_id,
@@ -261,13 +261,14 @@ def _show_selected_data_metrics(selected_data: List[Dict]) -> None:
 
 
 def _show_introduction(df: pd.DataFrame) -> None:
-    top_count: List[str] = (
+    top_count_series = (
         df.groupby("buyerName")["loanAmount"]
         .count()
         .sort_values(ascending=False)
         .head(3)
-        .index.tolist()
     )
+    top_count = top_count_series.index.tolist()
+    top_count_loans = top_count_series.values.tolist()
 
     top_avg: List[str] = (
         df.groupby("buyerName")["loanAmount"]
@@ -279,13 +280,12 @@ def _show_introduction(df: pd.DataFrame) -> None:
 
     st.markdown(
         f"""
-        The following data comes from mortgages recorded between **{START_DATE}**
-        and **{END_DATE}**.
+        This data covers loans recorded from **{START_DATE}** to **{END_DATE}**.
 
         The top three borrowers based on the **number of loans** are:
-        1. {top_count[0] if len(top_count) > 0 else ""}
-        2. {top_count[1] if len(top_count) > 1 else ""}
-        3. {top_count[2] if len(top_count) > 2 else ""}
+        1. {f'{top_count[0]} ({top_count_loans[0]} loans)' if len(top_count) > 0 else ''}
+        2. {f'{top_count[1]} ({top_count_loans[1]} loans)' if len(top_count) > 1 else ''}
+        3. {f'{top_count[2]} ({top_count_loans[2]} loans)' if len(top_count) > 2 else ''}
 
         The top three borrowers based on the **average loan amount** are:
         1. {top_avg[0] if len(top_avg) > 0 else ""}

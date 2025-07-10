@@ -5,81 +5,104 @@ import pandas as pd
 import streamlit as st
 from streamlit_agraph import Config, Edge, Node, agraph
 
-from constants.css import BLACK_HEX, GREEN_HEX, GREEN_LIGHT_HEX, RED_HEX, YELLOW_HEX
+from constants.css import (
+    BLACK_HEX,
+    GREEN_HEX,
+    GREEN_LIGHT_HEX,
+    PURPLE_HEX,
+    RED_HEX,
+    YELLOW_HEX,
+)
 from constants.dataset import END_DATE, LOCATION, START_DATE
 from pipelines.prep_data_borrower_loans import prep_data
 from utils.formatting import to_currency
 from utils.gui import show_st_h1, show_st_h2
 from utils.io import load_json
 
-"""
-TODO:
-- Change repeat borrower nodes to PURPLE_HEX
-- Reduce node "mass" value as number of borrowers increase.
-- Set node "physics" to False for really high number of borrowers like "Kiavi".
-- Add metrics for "% of repeat borrowers"
-- Change month node to always start from the START_DATE. (??)
-"""
+
+def _count_repeat_borrowers(selected_data: List[Dict]) -> int:
+    """
+    Returns the number of borrowers who have taken out more than one loan (repeat borrowers).
+    """
+    from collections import Counter
+
+    borrower_names = [d.get("buyerName") for d in selected_data if d.get("buyerName")]
+    counts = Counter(borrower_names)
+    repeat_borrowers = [name for name, count in counts.items() if count > 1]
+    return len(repeat_borrowers)
+
+
+def _count_unique_borrowers(selected_data: List[Dict]) -> int:
+    borrower_names = set()
+    for d in selected_data:
+        borrower_name = d.get("buyerName")
+        if borrower_name:
+            borrower_names.add(borrower_name)
+    count: int = len(borrower_names)
+
+    return count
 
 
 def _create_borrower_loan_relationships(
     selected_data: List[Dict], nodes: List, edges: List
 ) -> Tuple[List, List]:
-    borrower_ids_added: set = set()
-    loan_ids_added: set = set()
+    borrower_name_to_node_id: Dict[str, str] = dict()  # Map borrower name to node ID
 
-    unique_borrowers: int = _get_unique_borrowers(selected_data)
+    selected_data = _add_borrower_num_loans(selected_data)
+    unique_borrowers: int = _count_unique_borrowers(selected_data)
     mass: float = _get_scaled_mass(unique_borrowers)
-    physics: bool = False if mass == 0.0 else True
 
     for data in selected_data:
         record_id: str = str(data.get("id"))
-        borrower_id: str = f"borrower_{record_id}"
+        borrower_node_id: str = f"borrower_{record_id}"
         borrower_name: str = data.get("buyerName", "N/A")
         borrower_node_title: str = f"Borrower: {borrower_name}"
+        borrower_num_loans: int = data.get("borrower_num_loans", 0)
 
-        # Create borrower nodes based on unique borrower ids
-        if borrower_id not in borrower_ids_added:
+        # Assign different node style for repeat borrowers.
+        color: str = PURPLE_HEX if borrower_num_loans > 1 else RED_HEX
+        x_value: int = 0 if borrower_num_loans > 1 else 50
+        label: str | None = borrower_name if borrower_num_loans > 1 else None
+
+        # Only create new borrower nodes based on the borrower name.
+        if borrower_name not in borrower_name_to_node_id:
             nodes.append(
                 Node(
-                    id=borrower_id,
+                    id=borrower_node_id,
                     title=borrower_node_title,
-                    label=None,
-                    color=RED_HEX,
+                    label=label,
+                    color=color,
                     labelColor=BLACK_HEX,
                     size=20,
                     borderWidth=0,
                     mass=mass,
-                    physics=physics,
                     fixed={"x": True},
-                    x=0,
+                    x=x_value,
                 )
             )
-            borrower_ids_added.add(borrower_id)
+            borrower_name_to_node_id[borrower_name] = borrower_node_id
 
         # Create loan nodes
         loan_amount: int = int(data.get("loanAmount", 0))
         recording_date: str = data.get("recordingDate", "N/A")
         loan_currency_amount: str = to_currency(loan_amount)
-        loan_id: str = f"loan_{record_id}"
-        loan_node_title: str = f"{loan_currency_amount} loan on {recording_date}"
-        if loan_id not in loan_ids_added:
-            nodes.append(
-                Node(
-                    id=loan_id,
-                    title=loan_node_title,
-                    label=None,
-                    color=YELLOW_HEX,
-                    labelColor=BLACK_HEX,
-                    size=20,
-                    borderWidth=0,
-                )
+        loan_node_id: str = f"loan_{record_id}"
+        loan_node_title: str = f"{loan_currency_amount} recorded on {recording_date}"
+        nodes.append(
+            Node(
+                id=loan_node_id,
+                title=loan_node_title,
+                label=None,
+                color=YELLOW_HEX,
+                labelColor=BLACK_HEX,
+                size=20,
+                borderWidth=0,
             )
-            loan_ids_added.add(loan_id)
+        )
 
         # Create borrower-loan relationships
-        source_id = borrower_id
-        target_id = loan_id
+        source_id = borrower_name_to_node_id[borrower_name]
+        target_id = loan_node_id
         edges.append(
             Edge(
                 source=source_id,
@@ -94,7 +117,7 @@ def _create_borrower_loan_relationships(
 def _create_loan_date_relationships(
     selected_data: List[Dict], nodes: List, edges: List
 ) -> Tuple[List, List]:
-    unique_borrowers: int = _get_unique_borrowers(selected_data)
+    unique_borrowers: int = _count_unique_borrowers(selected_data)
     y_scaling_factor: int = _get_y_scaling_factor(unique_borrowers)
 
     latest_date: str | None = _get_latest_date(selected_data)
@@ -190,7 +213,10 @@ def _get_last_12_months(latest_date: str | None) -> List[date]:
 
 
 def _get_latest_date(selected_data: List[Dict]) -> str | None:
-    """Return the latest 'recordingDate' in YYYY-MM-DD format from selected_data, or None if not found."""
+    """
+    Return the latest 'recordingDate' in YYYY-MM-DD format from
+    selected_data, or None if not found.
+    """
     if not selected_data:
         return None
     dates: List[str] = [
@@ -208,30 +234,36 @@ def _get_scaled_mass(unique_borrowers: int) -> float:
     elif unique_borrowers > 30:
         mass = 0.2
     elif unique_borrowers > 20:
-        mass = 0.4
+        mass = 0.3
     elif unique_borrowers > 10:
         mass = 0.8
     else:
         mass = 1.0
 
-    st.write(unique_borrowers)  # TODO delete me
-    st.write(mass)  # TODO delete me
     return mass
+
+
+def _add_borrower_num_loans(selected_data: List[Dict]) -> List[Dict]:
+    """
+    Adds a 'borrower_num_loans' key to each dict in the list,
+    counting how many times each buyerName occurs in the list.
+    """
+    from collections import Counter
+
+    # Count occurrences of each buyerName
+    buyer_counts = Counter(
+        d.get("buyerName") for d in selected_data if d.get("buyerName") is not None
+    )
+
+    # Add the count to each dict
+    for d in selected_data:
+        buyer_name = d.get("buyerName")
+        d["borrower_num_loans"] = buyer_counts.get(buyer_name, 0)
+    return selected_data
 
 
 def _get_selected_data(prepped_data: List[Dict], lender: str) -> List[Dict]:
     return [d for d in prepped_data if d.get("lenderName", "") == lender]
-
-
-def _get_unique_borrowers(selected_data: List[Dict]) -> int:
-    borrower_names = set()
-    for d in selected_data:
-        borrower_name = d.get("buyerName")
-        if borrower_name:
-            borrower_names.add(borrower_name)
-    total_borrowers: int = len(borrower_names)
-
-    return total_borrowers
 
 
 def _get_y_scaling_factor(unique_borrowers: int) -> int:
@@ -246,8 +278,6 @@ def _get_y_scaling_factor(unique_borrowers: int) -> int:
     else:
         y_scaling_factor = 100
 
-    st.write(unique_borrowers)  # TODO delete me
-    st.write(y_scaling_factor)  # TODO delete me
     return y_scaling_factor
 
 
@@ -280,8 +310,13 @@ def _show_df(selected_data: List[Dict]) -> None:
 def _show_introduction() -> None:
     st.markdown(
         f"""
-        The following data comes from mortgages recorded between **{START_DATE}**
-        and **{END_DATE}**.
+        View any lender's origination activity over a 12-month period. Explore 
+        their most active month or compare the number of one-time borrowers to 
+        repeat borrowers.
+        
+        Simply type or select the lender's name in the search field below to begin.
+
+        This data covers loans recorded from **{START_DATE}** to **{END_DATE}**.
         """
     )
 
@@ -304,12 +339,16 @@ def _show_network_graph(selected_data: List[Dict]) -> None:
     )
     agraph(nodes=nodes, edges=edges, config=config)
 
+    lender_name: str = selected_data[0]["lenderName"]
     st.info(
         f"""
         **How to Interpret the Graph**\n
-        Yellow represents lenders, and green represents loans. 
-        Shape sizes are proportional to loan values. 
-        Arrows connect each lender to their respective loans.
+        In this visualization, **purple** shows borrowers who have taken out multiple 
+        loans from {lender_name}, while **red** shows one-time borrowers. 
+        **Yellow** indicates individual loans, and **green** represents the twelve-month 
+        period since the lender's last recorded loan.
+        **Arrows** connect each borrower to their respective loans, and each loan to 
+        the month in which it was recorded.
         """
     )
 
@@ -325,6 +364,41 @@ def _show_selectbox(prepped_data: List[Dict]) -> str:
     return option
 
 
+def _show_selected_data_metrics(selected_data: List[Dict]) -> None:
+    num_borrowers: int = len(set(d.get("buyerName", "") for d in selected_data))
+    if num_borrowers == 0:
+        return
+
+    repeat_borrower_count: int = _count_repeat_borrowers(selected_data)
+    repeat_borrower_pct: float = (
+        (repeat_borrower_count / num_borrowers) * 100 if num_borrowers > 0 else 0
+    )
+
+    loan_amounts = [
+        float(d.get("loanAmount", 0))
+        for d in selected_data
+        if d.get("loanAmount") not in (None, "", "N/A")
+    ]
+    avg_loan_amount = sum(loan_amounts) / len(loan_amounts) if loan_amounts else 0
+
+    col1, col2, col3 = st.columns(3)
+    col1.metric(
+        "Repeat Borrower Count",
+        f"{repeat_borrower_count}/{num_borrowers}",
+        border=True,
+    )
+    col2.metric(
+        "Repeat Borrower Pct",
+        f"{int(round(repeat_borrower_pct))}%",
+        border=True,
+    )
+    col3.metric(
+        "Average Loan Amount",
+        to_currency(int(avg_loan_amount)),
+        border=True,
+    )
+
+
 def render_lender_timeline_page():
     show_st_h1("Lender Timeline")
     show_st_h2(LOCATION, w_divider=True)
@@ -334,9 +408,15 @@ def render_lender_timeline_page():
 
     _show_introduction()
 
+    st.write("")
+    st.write("")
     selected_lender: str = _show_selectbox(prepped_data)
 
     selected_data: List[Dict] = _get_selected_data(prepped_data, selected_lender)
+
+    st.write("")
+    st.write("")
+    _show_selected_data_metrics(selected_data)
 
     _show_network_graph(selected_data)
 

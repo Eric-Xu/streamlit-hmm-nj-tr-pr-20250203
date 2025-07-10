@@ -170,8 +170,7 @@ def render_borrower_lenders_page():
 
     st.markdown(
         f"""
-        The following data comes from mortgages recorded between **{START_DATE}**
-        and **{END_DATE}**.
+        This data covers loans recorded from **{START_DATE}** to **{END_DATE}**.
         """
     )
     st.write("")

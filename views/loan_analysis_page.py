@@ -95,8 +95,7 @@ def _show_introduction(prepped_data: List[Dict]) -> None:
 
     st.markdown(
         f"""
-        The following data comes from mortgages recorded between **{START_DATE}**
-        and **{END_DATE}**.
+        This data covers loans recorded from **{START_DATE}** to **{END_DATE}**.
 
         There are **{total_loans}** loans in total, with an average amount of **${avg_loan_amount:,.0f}**. 
         
