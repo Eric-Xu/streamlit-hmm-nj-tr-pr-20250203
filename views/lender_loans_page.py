@@ -49,12 +49,15 @@ def _create_lender_loan_relationships(
             lender_name_to_node_id[lender_name] = lender_node_id
 
         borrower_name: str = data.get("buyerName", "N/A")
+        address: str = data.get("address", "N/A")
         loan_amount: int = int(data.get("loanAmount", 0))
         loan_currency_amount: str = to_currency(loan_amount)
         scaled_size_value: float = loan_amount_to_scaled[loan_amount]
 
         loan_node_id: str = f"loan_{record_id}"
-        loan_node_title: str = f"{loan_currency_amount} loan to {borrower_name}"
+        loan_node_title: str = (
+            f"{loan_currency_amount} loan to {borrower_name}\nProperty: {address}"
+        )
         new_loan_node: Node = Node(
             id=loan_node_id,
             title=loan_node_title,
@@ -91,23 +94,6 @@ def _get_selected_data(prepped_data: List[Dict], slider_data: Dict) -> List[Dict
             selected_data.append(borrower_activity)
 
     return selected_data
-
-
-def _show_all_data_metrics(df: pd.DataFrame) -> None:
-    total_lenders: int = df["lenderName"].nunique()
-    avg_loan_amount: float = df["loanAmount"].mean()
-    # Calculate top count series for max loan count
-    top_count_series = (
-        df.groupby("lenderName")["loanAmount"].count().sort_values(ascending=False)
-    )
-    max_loan_count: int = top_count_series.iloc[0] if not top_count_series.empty else 0
-
-    st.write("")
-    st.write("")
-    col1, col2, col3 = st.columns(3)
-    col1.metric("Total Lenders", total_lenders, border=True)
-    col2.metric("Highest # of Loans", max_loan_count, border=True)
-    col3.metric("Average Loan Amount", to_currency(avg_loan_amount), border=True)
 
 
 def _show_df(selected_data: List[Dict]) -> None:
@@ -158,6 +144,96 @@ def _scale_loan_amounts(
     return {amt: scale(amt) for amt in loan_amounts}
 
 
+def _show_introduction(df: pd.DataFrame) -> None:
+    top_n = 3
+    min_num_loans = 3
+
+    # Top by number of loans (no filter)
+    top_count_series = (
+        df.groupby("lenderName")["loanAmount"]
+        .count()
+        .sort_values(ascending=False)
+        .head(top_n)
+    )
+    top_count = top_count_series.index.tolist()
+    top_count_loans = top_count_series.values.tolist()
+
+    # Top by average loan amount (filter lenders with at least min_num_loans loans)
+    filtered_df = df[df["lender_num_loans"] >= min_num_loans]
+    grouped = (
+        filtered_df.groupby("lenderName")
+        .agg(avg_loan_amount=("loanAmount", "mean"), num_loans=("loanAmount", "count"))
+        .sort_values("avg_loan_amount", ascending=False)
+        .head(top_n)
+    )
+    top_avg = grouped.index.tolist()
+    top_avg_loans = grouped["avg_loan_amount"].tolist()
+    top_avg_num_loans = grouped["num_loans"].tolist()
+
+    st.markdown(
+        f"""
+        View all loans used to purchase properties in the given location. 
+        Discover the most active lenders and examine their loan portfolios 
+        by both volume and loan size.
+
+        The top three lenders based on the **number of loans** are:
+        
+        1. {f'{top_count[0]} ({top_count_loans[0]} loans)' if len(top_count) > 0 else ''}
+        1. {f'{top_count[1]} ({top_count_loans[1]} loans)' if len(top_count) > 1 else ''}
+        1. {f'{top_count[2]} ({top_count_loans[2]} loans)' if len(top_count) > 2 else ''}
+
+        The top three lenders (with at least {min_num_loans} loans) ranked
+        by their **average loan amount** are:
+        
+        1. {f'{top_avg[0]} ({to_currency(top_avg_loans[0])} for {top_avg_num_loans[0]} loans)' if len(top_avg) > 0 else ''}
+        1. {f'{top_avg[1]} ({to_currency(top_avg_loans[1])} for {top_avg_num_loans[1]} loans)' if len(top_avg) > 1 else ''}
+        1. {f'{top_avg[2]} ({to_currency(top_avg_loans[2])} for {top_avg_num_loans[2]} loans)' if len(top_avg) > 2 else ''}
+
+        To get started, adjust the slider below to filter lenders based on how 
+        many loans they have funded.
+
+        This data covers loans recorded from **{START_DATE}** to **{END_DATE}**.
+        """
+    )
+
+
+def _show_metrics_all_data(df: pd.DataFrame) -> None:
+    total_lenders: int = df["lenderName"].nunique()
+    avg_loan_amount: float = df["loanAmount"].mean()
+    # Calculate top count series for max loan count
+    top_count_series = (
+        df.groupby("lenderName")["loanAmount"].count().sort_values(ascending=False)
+    )
+    max_loan_count: int = top_count_series.iloc[0] if not top_count_series.empty else 0
+
+    st.write("")
+    st.write("")
+    col1, col2, col3 = st.columns(3)
+    col1.metric("Total Lenders", total_lenders, border=True)
+    col2.metric("Highest # of Loans", max_loan_count, border=True)
+    col3.metric("Average Loan Amount", to_currency(avg_loan_amount), border=True)
+
+
+def _show_metrics_selected_data(selected_data: List[Dict]) -> None:
+    num_lenders: int = len(set(d.get("lenderName", "") for d in selected_data))
+    if num_lenders == 0:
+        avg_loans_per_lender = 0
+        avg_loan_amount = 0
+    else:
+        avg_loans_per_lender = len(selected_data) / num_lenders
+        loan_amounts = [
+            float(d.get("loanAmount", 0))
+            for d in selected_data
+            if d.get("loanAmount") not in (None, "", "N/A")
+        ]
+        avg_loan_amount = sum(loan_amounts) / len(loan_amounts) if loan_amounts else 0
+
+    col1, col2, col3 = st.columns(3)
+    col1.metric("Selected Lenders", f"{num_lenders}")
+    col2.metric("Average # of Loans", f"{int(round(avg_loans_per_lender))}")
+    col3.metric("Average Loan Amount", to_currency(int(avg_loan_amount)))
+
+
 def _show_network_graph(selected_data: List[Dict]) -> None:
     nodes, edges = [], []
     nodes, edges = _create_lender_loan_relationships(selected_data, nodes, edges)
@@ -174,7 +250,7 @@ def _show_network_graph(selected_data: List[Dict]) -> None:
 
     st.info(
         f"""
-        **How to Interpret the Graph**\n
+        ##### :material/cognition: How to Interpret the Graph
         Yellow represents lenders, and green represents loans.
         Shape sizes are proportional to loan values.
         Arrows connect each lender to their respective loans.
@@ -223,60 +299,6 @@ def _show_slider_loans_per_lender(prepped_data: List[Dict]) -> Dict:
     return slider_data
 
 
-def _show_selected_data_metrics(selected_data: List[Dict]) -> None:
-    num_lenders: int = len(set(d.get("lenderName", "") for d in selected_data))
-    if num_lenders == 0:
-        avg_loans_per_lender = 0
-        avg_loan_amount = 0
-    else:
-        avg_loans_per_lender = len(selected_data) / num_lenders
-        loan_amounts = [
-            float(d.get("loanAmount", 0))
-            for d in selected_data
-            if d.get("loanAmount") not in (None, "", "N/A")
-        ]
-        avg_loan_amount = sum(loan_amounts) / len(loan_amounts) if loan_amounts else 0
-
-    col1, col2, col3 = st.columns(3)
-    col1.metric("Selected Lenders", f"{num_lenders}")
-    col2.metric("Average # of Loans", f"{int(round(avg_loans_per_lender))}")
-    col3.metric("Average Loan Amount", to_currency(int(avg_loan_amount)))
-
-
-def _show_introduction(df: pd.DataFrame) -> None:
-    top_count_series = (
-        df.groupby("lenderName")["loanAmount"].count().sort_values(ascending=False)
-    )
-    top_avg_series = (
-        df.groupby("lenderName")["loanAmount"].mean().sort_values(ascending=False)
-    )
-    top_count: List[str] = top_count_series.head(3).index.tolist()
-    top_avg: List[str] = top_avg_series.head(3).index.tolist()
-
-    st.markdown(
-        f"""
-        View all loans used to purchase property in the given location. 
-        Discover the most active lenders and examine their loan portfolios 
-        by both volume and loan size.
-
-        The top three lenders based on the **number of loans** are:
-        1. {top_count[0] if len(top_count) > 0 else ""}
-        2. {top_count[1] if len(top_count) > 1 else ""}
-        3. {top_count[2] if len(top_count) > 2 else ""}
-
-        The top three lenders based on the **average loan amount** are:
-        1. {top_avg[0] if len(top_avg) > 0 else ""}
-        2. {top_avg[1] if len(top_avg) > 1 else ""}
-        3. {top_avg[2] if len(top_avg) > 2 else ""}
-
-        To get started, adjust the slider below to filter lenders based on how 
-        many loans they have funded.
-
-        This data covers loans recorded from **{START_DATE}** to **{END_DATE}**.
-        """
-    )
-
-
 def render_lender_loans_page():
     show_st_h1("Lender Activity")
     show_st_h2(LOCATION, w_divider=True)
@@ -289,7 +311,7 @@ def render_lender_loans_page():
 
     _show_introduction(df)
 
-    _show_all_data_metrics(df)
+    _show_metrics_all_data(df)
 
     st.write("")
     st.markdown("#### Loans-Per-Lender")
@@ -303,7 +325,7 @@ def render_lender_loans_page():
 
     st.write("")
     st.write("")
-    _show_selected_data_metrics(selected_data)
+    _show_metrics_selected_data(selected_data)
 
     st.write("")
     _show_network_graph(selected_data)

@@ -33,7 +33,7 @@ def _transform_data(borrower_activities_df: DataFrame) -> DataFrame:
         df_sorted["buyerName"].value_counts()
     )
 
-    # Add a new column "lender_num_loans" counting occurrences of each buyerName
+    # Add a new column "lender_num_loans" counting occurrences of each lenderName
     df_sorted["lender_num_loans"] = df_sorted["lenderName"].map(
         df_sorted["lenderName"].value_counts()
     )

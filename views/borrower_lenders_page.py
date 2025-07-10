@@ -115,7 +115,7 @@ def _show_network_graph(selected_data: List[Dict]) -> None:
 
     st.info(
         f"""
-        **How to Interpret the Graph**\n
+        ##### :material/cognition: How to Interpret the Graph
         Blue represents borrowers, and green represents lenders.
         Light green lines represent borrower-lender relationships.
         """

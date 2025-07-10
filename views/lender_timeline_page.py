@@ -1,3 +1,4 @@
+from collections import Counter, defaultdict
 from datetime import date, datetime
 from typing import Dict, List, Tuple
 
@@ -24,8 +25,6 @@ def _count_repeat_borrowers(selected_data: List[Dict]) -> int:
     """
     Returns the number of borrowers who have taken out more than one loan (repeat borrowers).
     """
-    from collections import Counter
-
     borrower_names = [d.get("buyerName") for d in selected_data if d.get("buyerName")]
     counts = Counter(borrower_names)
     repeat_borrowers = [name for name, count in counts.items() if count > 1]
@@ -85,9 +84,12 @@ def _create_borrower_loan_relationships(
         # Create loan nodes
         loan_amount: int = int(data.get("loanAmount", 0))
         recording_date: str = data.get("recordingDate", "N/A")
+        address: str = data.get("address", "N/A")
         loan_currency_amount: str = to_currency(loan_amount)
         loan_node_id: str = f"loan_{record_id}"
-        loan_node_title: str = f"{loan_currency_amount} recorded on {recording_date}"
+        loan_node_title: str = (
+            f"{loan_currency_amount} recorded on {recording_date}\nProperty: {address}"
+        )
         nodes.append(
             Node(
                 id=loan_node_id,
@@ -111,6 +113,7 @@ def _create_borrower_loan_relationships(
                 width=5,
             )
         )
+
     return nodes, edges
 
 
@@ -179,17 +182,20 @@ def _create_loan_date_relationships(
         except Exception as e:
             # Optionally log the error or pass
             pass
+
     return nodes, edges
 
 
 def _get_date_to_month_node_label(last_12_months: List[date]) -> Dict[date, str]:
     """Return a dict mapping each date to a label like "DEC '25"."""
+
     return {d: d.strftime("%b '%y").upper() for d in last_12_months}
 
 
 def _get_first_of_month(date_str: str) -> date:
     """Convert a date string like '2025-05-10' to a date object for the first of that month (e.g., date(2025, 5, 1))."""
     dt = datetime.strptime(date_str, "%Y-%m-%d").date()
+
     return date(dt.year, dt.month, 1)
 
 
@@ -209,6 +215,7 @@ def _get_last_12_months(latest_date: str | None) -> List[date]:
             month = 12
         else:
             month -= 1
+
     return months
 
 
@@ -224,6 +231,7 @@ def _get_latest_date(selected_data: List[Dict]) -> str | None:
     ]
     if not dates:
         return None
+
     return max(dates)
 
 
@@ -248,8 +256,6 @@ def _add_borrower_num_loans(selected_data: List[Dict]) -> List[Dict]:
     Adds a 'borrower_num_loans' key to each dict in the list,
     counting how many times each buyerName occurs in the list.
     """
-    from collections import Counter
-
     # Count occurrences of each buyerName
     buyer_counts = Counter(
         d.get("buyerName") for d in selected_data if d.get("buyerName") is not None
@@ -307,12 +313,73 @@ def _show_df(selected_data: List[Dict]) -> None:
     )
 
 
+def _get_top_lenders_by_repeat_borrower_pct(
+    prepped_data: List[Dict], min_num_loans, top_n: int = 5
+) -> list[tuple[str, float, int, int, int]]:
+    """
+    Returns a list of tuples:
+        (lender_name, repeat_borrower_pct, repeat_borrower_count, unique_borrower_count, num_loans)
+    for the top_n lenders by repeat borrower percentage.
+    Only considers lenders with more than min_num_loans.
+    """
+    # Group all records by lender
+    lender_to_records = defaultdict(list)
+    for d in prepped_data:
+        lender = d.get("lenderName")
+        if lender:
+            lender_to_records[lender].append(d)
+
+    results = []
+    for lender, records in lender_to_records.items():
+        borrower_counts = Counter(
+            d.get("buyerName") for d in records if d.get("buyerName")
+        )
+        num_unique = len(borrower_counts)
+        num_loans = len(records)
+        if num_unique == 0 or num_loans <= min_num_loans:
+            continue
+        # Count repeat borrowers
+        repeat_borrowers = [
+            name for name, count in borrower_counts.items() if count > 1
+        ]
+        num_repeat = len(repeat_borrowers)
+        pct = (num_repeat / num_unique) * 100 if num_unique > 0 else 0
+        results.append((lender, pct, num_repeat, num_unique, num_loans))
+
+    # Sort by repeat borrower percentage, descending
+    results.sort(key=lambda x: x[1], reverse=True)
+    return results[:top_n]
+
+
 def _show_introduction() -> None:
+    top_n = 5
+    min_num_loans = 10
+
+    prepped_data_file_path: str = prep_data()
+    prepped_data: List[Dict] = load_json(prepped_data_file_path)
+    top_lenders = _get_top_lenders_by_repeat_borrower_pct(
+        prepped_data, min_num_loans, top_n
+    )
+
+    top_lender_lines = []
+    for i, (lender, pct, num_repeat, num_unique, num_loans) in enumerate(
+        top_lenders, 1
+    ):
+        top_lender_lines.append(f"{lender} ({int(round(pct))}%, {num_loans} loans)")
+
     st.markdown(
         f"""
         View any lender's origination activity over a 12-month period. Explore 
         their most active month or compare the number of one-time borrowers to 
         repeat borrowers.
+
+        The top {top_n} lenders (with at least {min_num_loans} loans) ranked 
+        by the **percentage of repeat borrowers** are:
+        1. {top_lender_lines[0] if len(top_lender_lines) > 0 else ""}
+        2. {top_lender_lines[1] if len(top_lender_lines) > 1 else ""}
+        3. {top_lender_lines[2] if len(top_lender_lines) > 2 else ""}
+        4. {top_lender_lines[3] if len(top_lender_lines) > 3 else ""}
+        5. {top_lender_lines[4] if len(top_lender_lines) > 4 else ""}
         
         Simply type or select the lender's name in the search field below to begin.
 
@@ -342,9 +409,9 @@ def _show_network_graph(selected_data: List[Dict]) -> None:
     lender_name: str = selected_data[0]["lenderName"]
     st.info(
         f"""
-        **How to Interpret the Graph**\n
+        ##### :material/cognition:  How to Interpret the Graph
         In this visualization, **purple** shows borrowers who have taken out multiple 
-        loans from {lender_name}, while **red** shows one-time borrowers. 
+        loans from the lender {lender_name}, while **red** shows one-time borrowers. 
         **Yellow** indicates individual loans, and **green** represents the twelve-month 
         period since the lender's last recorded loan.
         **Arrows** connect each borrower to their respective loans, and each loan to 
@@ -364,7 +431,7 @@ def _show_selectbox(prepped_data: List[Dict]) -> str:
     return option
 
 
-def _show_selected_data_metrics(selected_data: List[Dict]) -> None:
+def _show_metrics_selected_data(selected_data: List[Dict]) -> None:
     num_borrowers: int = len(set(d.get("buyerName", "") for d in selected_data))
     if num_borrowers == 0:
         return
@@ -416,7 +483,7 @@ def render_lender_timeline_page():
 
     st.write("")
     st.write("")
-    _show_selected_data_metrics(selected_data)
+    _show_metrics_selected_data(selected_data)
 
     _show_network_graph(selected_data)
 

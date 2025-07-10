@@ -95,25 +95,31 @@ def _show_introduction(prepped_data: List[Dict]) -> None:
 
     st.markdown(
         f"""
-        This data covers loans recorded from **{START_DATE}** to **{END_DATE}**.
-
         There are **{total_loans}** loans in total, with an average amount of **${avg_loan_amount:,.0f}**. 
         
-        These loans involve **{unique_borrowers}** borrowers and **{unique_lenders}** lenders.
+        These loans involve **{unique_lenders}** lenders and **{unique_borrowers}** borrowers.
+
+        This data covers loans recorded from **{START_DATE}** to **{END_DATE}**.
         """
     )
 
 
-def _show_selected_data_metrics(borrower_loan_data: List[Dict]) -> None:
+def _show_metrics_all_data(prepped_data: List[Dict]) -> None:
+    unique_borrowers: int = len(set(item.get("buyerName", "") for item in prepped_data))
+    unique_lenders: int = len(set(item.get("lenderName", "") for item in prepped_data))
+
+    col1, col2 = st.columns(2)
+    col1.metric("Number of Lenders", unique_lenders, border=True)
+    col2.metric("Number of Borrowers", unique_borrowers, border=True)
+
+
+def _show_metrics_selected_data(borrower_loan_data: List[Dict]) -> None:
     amounts = [item["amount"] for item in borrower_loan_data]
 
     col1, col2, col3 = st.columns(3)
-    with col1:
-        st.metric("Selected Loans", len(amounts))
-    with col2:
-        st.metric("Average Loan", f"${sum(amounts)/len(amounts):,.0f}")
-    with col3:
-        st.metric("Highest Loan", f"${max(amounts):,.0f}")
+    col1.metric("Selected Loans", len(amounts))
+    col2.metric("Average Loan", f"${sum(amounts)/len(amounts):,.0f}")
+    col3.metric("Highest Loan", f"${max(amounts):,.0f}")
 
 
 def _show_slider(prepped_data: List[Dict]) -> Tuple[int, int]:
@@ -143,6 +149,9 @@ def render_loan_analysis_page():
     _show_introduction(prepped_data)
 
     st.write("")
+    _show_metrics_all_data(prepped_data)
+
+    st.write("")
     st.write("")
     user_min_loan_amount, user_max_loan_amount = _show_slider(prepped_data)
 
@@ -154,7 +163,7 @@ def render_loan_analysis_page():
 
     _show_bar_chart(borrower_loan_data)
 
-    _show_selected_data_metrics(borrower_loan_data)
+    _show_metrics_selected_data(borrower_loan_data)
 
     st.write("")
     st.write("")
