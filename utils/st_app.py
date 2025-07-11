@@ -67,10 +67,13 @@ def setup_page_navigation() -> StreamlitPage:
         "Borrower Activity": [
             borrower_loans_page,
             borrower_timeline_page,
-            borrower_lenders_page,  # remove
         ],
         "Lender Activity": [lender_loans_page, lender_timeline_page],
-        # "Borrower-Lender": [relationships_page, relationship_timeline_page]
+        "Borrower-Lender Relationship": [
+            borrower_lenders_page,
+            # relationships_page,
+            # relationship_timeline_page,
+        ],
     }
     pg: StreamlitPage = st.navigation(pages)
 

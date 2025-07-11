@@ -1,106 +1,14 @@
-from typing import Dict, List, Tuple
+from typing import Dict, List
 
 import pandas as pd
 import streamlit as st
-from streamlit_agraph import Config, Edge, Node, agraph
 
-from constants.css import BLACK_HEX, BLUE_HEX, GREEN_HEX, GREEN_LIGHT_HEX
 from constants.dataset import END_DATE, LOCATION, START_DATE
 from pipelines.prep_data_borrower_loans import prep_data
 from utils.formatting import to_currency
 from utils.gui import show_st_h1, show_st_h2
 from utils.io import load_json
-
-HIDE_LABEL_THRESHOLD_PCT = 0.4
-MIN_HIDE_LABEL_THRESHOLD = 1
-
-
-def _create_borrower_loan_relationships(
-    selected_data: List[Dict], nodes: List, edges: List
-) -> Tuple[List, List]:
-    borrower_name_to_node_id: Dict[str, str] = dict()  # Map borrower name to node ID
-
-    loan_amount_to_scaled = _scale_loan_amounts(
-        selected_data
-    )  # Compute scaling for loan amounts
-
-    hide_label_threshold: int = _get_hide_label_threshold(
-        selected_data
-    )  # Compute dynamic threshold value
-
-    for data in selected_data:
-        record_id: str = str(data.get("id"))
-        borrower_node_id: str = f"borrower_{record_id}"
-        borrower_name: str = data.get("buyerName", "N/A")
-        num_loans: int = data.get("borrower_num_loans", 0)
-        borrower_node_title: str = f"Borrower: {borrower_name}"
-        borrower_name_value = (
-            borrower_name if num_loans > hide_label_threshold else None
-        )
-
-        # Only create new borrower nodes based on the borrower name.
-        if borrower_name not in borrower_name_to_node_id:
-            nodes.append(
-                Node(
-                    id=borrower_node_id,
-                    title=borrower_node_title,
-                    label=borrower_name_value,
-                    color=BLUE_HEX,
-                    labelColor=BLACK_HEX,
-                    size=20,
-                    borderWidth=0,
-                    font={"size": 24},
-                )
-            )
-            borrower_name_to_node_id[borrower_name] = borrower_node_id
-
-        lender_name: str = data.get("lenderName", "N/A")
-        address: str = data.get("address", "N/A")
-        loan_amount: int = int(data.get("loanAmount", 0))
-        loan_currency_amount: str = to_currency(loan_amount)
-        scaled_size_value: float = loan_amount_to_scaled[loan_amount]
-
-        loan_node_id: str = f"loan_{record_id}"
-        loan_node_title: str = (
-            f"{loan_currency_amount} loan by {lender_name}\nProperty: {address}"
-        )
-        new_loan_node: Node = Node(
-            id=loan_node_id,
-            title=loan_node_title,
-            label=None,
-            color=GREEN_HEX,
-            labelColor=BLACK_HEX,
-            size=int(scaled_size_value),
-            borderWidth=0,
-        )
-
-        source_id = borrower_name_to_node_id[borrower_name]
-        target_id = loan_node_id
-        new_edge_node: Edge = Edge(
-            source=source_id,
-            target=target_id,
-            color=GREEN_LIGHT_HEX,
-            width=5,
-        )
-
-        nodes.append(new_loan_node)
-        edges.append(new_edge_node)
-
-    return nodes, edges
-
-
-def _get_hide_label_threshold(selected_data: List[Dict]) -> int:
-    max_num_loans: int = max(
-        [int(d.get("borrower_num_loans", 0)) for d in selected_data]
-    )
-    hide_label_threshold: int = int(max_num_loans * HIDE_LABEL_THRESHOLD_PCT)
-    hide_label_threshold = (
-        hide_label_threshold
-        if hide_label_threshold > MIN_HIDE_LABEL_THRESHOLD
-        else MIN_HIDE_LABEL_THRESHOLD
-    )
-
-    return hide_label_threshold
+from utils.party_to_loan_relationship import show_relationship_network_graph
 
 
 def _get_selected_data(prepped_data: List[Dict], slider_data: Dict) -> List[Dict]:
@@ -196,27 +104,6 @@ def _show_introduction(df: pd.DataFrame) -> None:
     )
 
 
-def _scale_loan_amounts(
-    selected_data: List[Dict], min_size: int = 10, max_size: int = 40
-) -> Dict:
-    """
-    Returns a dict mapping loanAmount to scaled size between min_size and max_size.
-    """
-    loan_amounts: List[int] = [int(d.get("loanAmount", 0)) for d in selected_data]
-    if not loan_amounts:
-        return {}
-    min_amt = min(loan_amounts)
-    max_amt = max(loan_amounts)
-    if min_amt == max_amt:
-        # All values are the same, return mid value
-        return {amt: (min_size + max_size) // 2 for amt in loan_amounts}
-
-    def scale(val: int) -> float:
-        return min_size + (max_size - min_size) * (val - min_amt) / (max_amt - min_amt)
-
-    return {amt: scale(amt) for amt in loan_amounts}
-
-
 def _show_metrics_all_data(df: pd.DataFrame) -> None:
     total_borrowers: int = df["buyerName"].nunique()
     avg_loan_amount: float = df["loanAmount"].mean()
@@ -251,25 +138,15 @@ def _show_metrics_selected_data(selected_data: List[Dict]) -> None:
 
 
 def _show_network_graph(selected_data: List[Dict]) -> None:
-    nodes, edges = [], []
-    nodes, edges = _create_borrower_loan_relationships(selected_data, nodes, edges)
-
-    # Create the network graph
-    config = Config(
-        physics=True,
-        directed=True,
-        nodeHighlightBehavior=True,
-        node={"labelProperty": "label"},
-        link={"labelProperty": "label"},
-    )
-    agraph(nodes=nodes, edges=edges, config=config)
+    party = "borrower"
+    show_relationship_network_graph(party, selected_data)
 
     st.info(
         f"""
         ##### :material/cognition: How to Interpret the Graph
-        Blue represents borrowers, and green represents loans. 
+        Yellow represents {party}s, and green represents loans. 
         Shape sizes are proportional to loan values. 
-        Arrows connect each borrower to their respective loans.
+        Arrows connect each {party} to their respective loans.
         """
     )
 
@@ -331,7 +208,7 @@ def render_borrower_loans_page():
     _show_metrics_all_data(df)
 
     st.write("")
-    st.markdown("#### Loans-Per-Borrower")
+    st.markdown("#### Loans Per Borrower")
 
     slider_data: Dict = _show_slider_loans_per_borrower(prepped_data)
 
