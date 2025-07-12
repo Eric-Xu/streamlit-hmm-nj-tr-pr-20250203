@@ -79,7 +79,7 @@ def _show_introduction(df: pd.DataFrame) -> None:
 
     st.markdown(
         f"""
-        View all loans used to purchase properties in the given location. 
+        View all business purpose loans used to purchase properties in {LOCATION}. 
         Discover the most active borrowers and examine their purchase activity 
         by both volume and loan size.
 
