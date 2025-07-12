@@ -1,5 +1,4 @@
 pandas == 2.2.3
-python-dotenv == 1.1.1
 streamlit == 1.43.2
 streamlit-agraph == 0.0.45
 streamlit-analytics2 == 0.10.5
