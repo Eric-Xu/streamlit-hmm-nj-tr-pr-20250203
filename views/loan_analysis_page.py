@@ -1,11 +1,12 @@
 from typing import Dict, List, Tuple
 
+import altair as alt
 import pandas as pd
 import streamlit as st
 
-from constants.css import GREEN_HEX
+from constants.css import GREEN_HEX, RED_HEX
 from constants.dataset import END_DATE, LOCATION, START_DATE
-from pipelines.prep_data_borrower_loans import prep_data
+from pipelines.prepare_loan_data import prep_data
 from utils.gui import show_st_h1, show_st_h2
 from utils.io import load_json
 
@@ -53,19 +54,46 @@ def _prep_borrower_loan_data(selected_data: List[Dict]) -> List[Dict]:
 
 
 def _show_bar_chart(borrower_loan_data: List[Dict]) -> None:
-    """Display a bar chart of loan amounts ordered from highest to lowest."""
-    amounts = [item["amount"] for item in borrower_loan_data]
-    borrowers = [item["borrower"] for item in borrower_loan_data]
+    """
+    Display a bar chart of loan amounts ordered from lowest to highest. The
+    native st.bar_chart cannot order the bar values so an Altair chart is
+    used instead.
+    """
+    df = pd.DataFrame(borrower_loan_data)
+    # Rename columns for display
+    df = df.rename(columns={"borrower": "Borrower", "amount": "Loan Amount ($)"})
+    # Sort by loan amount ascending
+    df_sorted = df.sort_values(by="Loan Amount ($)", ascending=True)
 
     st.markdown("#### Loan Amount Distribution")
-    st.bar_chart(
-        data=pd.DataFrame({"Loan Amount ($)": amounts, "Borrower": borrowers}),
-        x="Borrower",
-        y="Loan Amount ($)",
-        color=GREEN_HEX,
-        height=500,
-        use_container_width=True,
+
+    # Bar chart
+    bar = (
+        alt.Chart(df_sorted)
+        .mark_bar(color=GREEN_HEX)
+        .encode(
+            x=alt.X("Borrower:N", sort=None, title="Borrower"),
+            y=alt.Y("Loan Amount ($):Q", title="Loan Amount ($)"),
+            tooltip=["Borrower", "Loan Amount ($)"],
+        )
+        .properties(height=500, width="container")
     )
+
+    # Average line
+    average_line = (
+        alt.Chart(df_sorted)
+        .mark_rule(color=RED_HEX, size=2)
+        .encode(
+            y="mean(Loan Amount ($)):Q",
+            tooltip=[
+                alt.Tooltip("mean(Loan Amount ($)):Q", title="Average Loan Amount")
+            ],
+        )
+    )
+
+    # Overlay
+    chart = bar + average_line
+    st.altair_chart(chart, use_container_width=True)
 
 
 def _show_df(borrower_loan_data: List[Dict]) -> None:

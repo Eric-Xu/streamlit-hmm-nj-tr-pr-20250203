@@ -5,7 +5,7 @@ import pandas as pd
 import streamlit as st
 
 from constants.dataset import END_DATE, LOCATION, START_DATE
-from pipelines.prep_data_borrower_loans import prep_data
+from pipelines.prepare_loan_data import prep_data
 from utils.formatting import to_currency
 from utils.gui import show_st_h1, show_st_h2
 from utils.io import load_json
