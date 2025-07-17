@@ -99,7 +99,7 @@ def _show_introduction(df: pd.DataFrame) -> None:
         To get started, adjust the slider below to filter borrowers by the 
         number of properties they have purchased with loans.
 
-        This data covers loans recorded from **{START_DATE}** to **{END_DATE}**.
+        *(This data covers loans recorded from **{START_DATE}** to **{END_DATE}**)*.
         """
     )
 
@@ -143,7 +143,7 @@ def _show_network_graph(selected_data: List[Dict]) -> None:
 
     st.info(
         f"""
-        ##### :material/cognition: How to Interpret the Graph
+        ##### :material/cognition: How to Interpret the Chart
         Yellow represents {party}s, and green represents loans. 
         Shape sizes are proportional to loan values. 
         Arrows connect each {party} to their respective loans.
@@ -193,9 +193,9 @@ def _show_slider_loans_per_borrower(prepped_data: List[Dict]) -> Dict:
     return slider_data
 
 
-def render_borrower_loans_page():
+def render_page():
     show_st_h1("Borrower Activity")
-    show_st_h2(LOCATION, w_divider=True)
+    show_st_h2(LOCATION, w_divider=True)  # Borrower Marketshare?
 
     prepped_data_file_path: str = prep_data()
     prepped_data: List[Dict] = load_json(prepped_data_file_path)
@@ -203,6 +203,7 @@ def render_borrower_loans_page():
     df = pd.DataFrame(prepped_data)
     df["loanAmount"] = pd.to_numeric(df["loanAmount"], errors="coerce")
 
+    st.write("")
     _show_introduction(df)
 
     _show_metrics_all_data(df)
@@ -225,4 +226,4 @@ def render_borrower_loans_page():
     _show_network_graph(selected_data)
 
 
-render_borrower_loans_page()
+render_page()

@@ -122,7 +122,7 @@ def _show_introduction() -> None:
         
         Simply type or select the lender's name in the search field below to begin.
 
-        This data covers loans recorded from **{START_DATE}** to **{END_DATE}**.
+        *(This data covers loans recorded from **{START_DATE}** to **{END_DATE}**)*.
         """
     )
 
@@ -136,7 +136,7 @@ def _show_network_graph(selected_data: List[Dict]) -> None:
     lender_name: str = selected_data[0]["lenderName"]
     st.info(
         f"""
-        ##### :material/cognition:  How to Interpret the Graph
+        ##### :material/cognition:  How to Interpret the Chart
         In this visualization, **purple** shows borrowers who have taken out multiple 
         loans from the lender {lender_name}, while **red** shows one-time borrowers. 
         **Yellow** indicates individual loans, and **green** represents the twelve-month 
@@ -193,13 +193,14 @@ def _show_metrics_selected_data(selected_data: List[Dict]) -> None:
     )
 
 
-def render_lender_timeline_page():
-    show_st_h1("Lender Timeline")
-    show_st_h2(LOCATION, w_divider=True)
+def render_page():
+    show_st_h1("Lender Analysis")
+    show_st_h2("Repeat Borrowers", w_divider=True)
 
     prepped_data_file_path: str = prep_data()
     prepped_data: List[Dict] = load_json(prepped_data_file_path)
 
+    st.write("")
     _show_introduction()
 
     st.write("")
@@ -217,4 +218,4 @@ def render_lender_timeline_page():
     _show_df(selected_data)
 
 
-render_lender_timeline_page()
+render_page()

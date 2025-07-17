@@ -99,7 +99,7 @@ def _show_introduction(df: pd.DataFrame) -> None:
         To get started, adjust the slider below to filter lenders based on how 
         many loans they have funded.
 
-        This data covers loans recorded from **{START_DATE}** to **{END_DATE}**.
+        *(This data covers loans recorded from **{START_DATE}** to **{END_DATE}**)*.
         """
     )
 
@@ -147,7 +147,7 @@ def _show_network_graph(selected_data: List[Dict]) -> None:
 
     st.info(
         f"""
-        ##### :material/cognition: How to Interpret the Graph
+        ##### :material/cognition: How to Interpret the Chart
         Yellow represents {party}s, and green represents loans.
         Shape sizes are proportional to loan values.
         Arrows connect each {party} to their respective loans.
@@ -164,29 +164,38 @@ def _show_slider_loans_per_lender(prepped_data: List[Dict]) -> Dict:
         max_num_loans = 0
 
     # Use a tiered filter to improve rendering speed
-    if max_num_loans > 20:
-        offset = int(max_num_loans / 10)
-        slider_min = offset
+    if max_num_loans > 50:
+        offset = int(max_num_loans * 0.25)
+        slider_min = 5
         slider_max = max_num_loans
-        value_min = slider_min + offset
-        value_max = max_num_loans - offset
+        value_min = 20
+        value_max = slider_min + offset
+        step = 5
+    elif max_num_loans > 20:
+        slider_min = 5
+        slider_max = max_num_loans
+        value_min = 10
+        value_max = 20
+        step = 1
     elif max_num_loans > 10:
         slider_min = 1
         slider_max = max_num_loans
         value_min = slider_min + 1
         value_max = max_num_loans - 1
+        step = 1
     else:
         slider_min = 1
         slider_max = max_num_loans + 1
         value_min = slider_min + 1
         value_max = max_num_loans + 1
+        step = 1
 
     user_min_num_loans, user_max_num_loans = st.slider(
         "**Select lenders by adjusting the range for the number of loans per lender.**",
         min_value=slider_min,
         max_value=slider_max,
         value=(value_min, value_max),
-        step=1,
+        step=step,
     )
 
     slider_data: Dict = {
@@ -196,9 +205,9 @@ def _show_slider_loans_per_lender(prepped_data: List[Dict]) -> Dict:
     return slider_data
 
 
-def render_lender_loans_page():
-    show_st_h1("Lender Activity")
-    show_st_h2(LOCATION, w_divider=True)
+def render_page():
+    show_st_h1("Lender Analysis")
+    show_st_h2("Marketshare", w_divider=True)
 
     prepped_data_file_path: str = prep_data()
     prepped_data: List[Dict] = load_json(prepped_data_file_path)
@@ -206,6 +215,7 @@ def render_lender_loans_page():
     df = pd.DataFrame(prepped_data)
     df["loanAmount"] = pd.to_numeric(df["loanAmount"], errors="coerce")
 
+    st.write("")
     _show_introduction(df)
 
     _show_metrics_all_data(df)
@@ -228,4 +238,4 @@ def render_lender_loans_page():
     _show_network_graph(selected_data)
 
 
-render_lender_loans_page()
+render_page()

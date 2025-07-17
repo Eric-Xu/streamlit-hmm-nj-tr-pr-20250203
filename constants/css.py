@@ -1,5 +1,7 @@
 BLACK_HEX = "#262730"
 BLUE_HEX = "#3a91dd"
+GRAY_HEX = "#cccccc"
+GRAY_LIGHT_HEX = "#f0f2f6"
 GREEN_HEX = "#5bd0b3"
 GREEN_LIGHT_HEX = "#74e9cc"
 PURPLE_HEX = "#803df5"

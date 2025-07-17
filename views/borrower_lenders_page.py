@@ -28,6 +28,28 @@ def _get_selected_data(prepped_data: List[Dict], slider_data: Dict) -> List[Dict
     return selected_data
 
 
+def _show_introduction(prepped_data: List[Dict]) -> None:
+    unique_borrowers: int = len(set(item.get("buyerName", "") for item in prepped_data))
+    unique_lenders: int = len(set(item.get("lenderName", "") for item in prepped_data))
+
+    st.markdown(
+        f"""
+        There are a total of **{unique_lenders}** lenders and **{unique_borrowers}** borrowers.
+
+        *(This data covers loans recorded from **{START_DATE}** to **{END_DATE}**)*.
+        """
+    )
+
+
+def _show_metrics_all_data(prepped_data: List[Dict]) -> None:
+    unique_borrowers: int = len(set(item.get("buyerName", "") for item in prepped_data))
+    unique_lenders: int = len(set(item.get("lenderName", "") for item in prepped_data))
+
+    col1, col2 = st.columns(2)
+    col1.metric("Number of Lenders", unique_lenders, border=True)
+    col2.metric("Number of Borrowers", unique_borrowers, border=True)
+
+
 def _show_network_graph(selected_data: List[Dict]) -> None:
     nodes, edges = [], []
     borrower_index, lender_index = 1, 1
@@ -115,7 +137,7 @@ def _show_network_graph(selected_data: List[Dict]) -> None:
 
     st.info(
         f"""
-        ##### :material/cognition: How to Interpret the Graph
+        ##### :material/cognition: How to Interpret the Chart
         Blue represents borrowers, and green represents lenders.
         Light green lines represent borrower-lender relationships.
         """
@@ -164,55 +186,24 @@ def _show_slider(prepped_data: List[Dict]) -> Dict:
     return slider_data
 
 
-def render_borrower_lenders_page():
-    show_st_h1("Borrower Activity")
+def render_page():
+    show_st_h1("Borrower Lender Relationships")
     show_st_h2(LOCATION, w_divider=True)
-
-    st.markdown(
-        f"""
-        This data covers loans recorded from **{START_DATE}** to **{END_DATE}**.
-        """
-    )
-    st.write("")
 
     prepped_data_file_path: str = prep_data()
     prepped_data: List[Dict] = load_json(prepped_data_file_path)
+
+    st.write("")
+    _show_introduction(prepped_data)
+
+    _show_metrics_all_data(prepped_data)
 
     slider_data: Dict = _show_slider(prepped_data)
 
     selected_data: List[Dict] = _get_selected_data(prepped_data, slider_data)
 
-    # st.write("")
-    # _show_df(selected_data)
-
-    # st.write("")
-    # st.write("")
-    # _show_summary_statistics(selected_data)
-
     st.write("")
     _show_network_graph(selected_data)
 
-    # df = pd.DataFrame(
-    #     {
-    #         "Name": ["Alice", "Bob", "Charlie", "David"],
-    #         "City": ["London", "Paris", "Berlin", "Madrid"],
-    #     }
-    # )
 
-    # # Search box
-    # query = st.text_input("Search:")
-
-    # # Filter DataFrame in real-time as user types
-    # if query:
-    #     mask = df.apply(
-    #         lambda row: row.astype(str).str.contains(query, case=False, na=False).any(),
-    #         axis=1,
-    #     )
-    #     filtered_df = df[mask]
-    # else:
-    #     filtered_df = df
-
-    # st.dataframe(filtered_df)
-
-
-render_borrower_lenders_page()
+render_page()

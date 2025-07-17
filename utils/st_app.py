@@ -11,8 +11,10 @@ from constants.file import (
     BORROWER_TIMELINE_PAGE_FILE,
     CSS_DIR,
     CSS_FILE,
+    LENDER_BORROWER_CHURN_PAGE_FILE,
+    LENDER_BORROWER_MIGRATION_PAGE_FILE,
     LENDER_LOANS_PAGE_FILE,
-    LENDER_TIMELINE_PAGE_FILE,
+    LENDER_REPEAT_BORROWERS_PAGE_FILE,
     LOAN_ANALYSIS_PAGE_FILE,
     PAGE_DIR,
 )
@@ -58,7 +60,7 @@ def load_css() -> None:
 def setup_page_navigation() -> StreamlitPage:
     loan_analysis_page = st.Page(
         os.path.join(PAGE_DIR, LOAN_ANALYSIS_PAGE_FILE),
-        title="Loan Amount",
+        title="Loans",
         icon=":material/bar_chart:",
         default=True,
     )
@@ -79,22 +81,37 @@ def setup_page_navigation() -> StreamlitPage:
     )
     lender_loans_page = st.Page(
         os.path.join(PAGE_DIR, LENDER_LOANS_PAGE_FILE),
-        title="Lenders & Loans",
-        icon=":material/scatter_plot:",
+        title="Marketshare",
+        icon=":material/incomplete_circle:",
     )
-    lender_timeline_page = st.Page(
-        os.path.join(PAGE_DIR, LENDER_TIMELINE_PAGE_FILE),
-        title="Lender Timeline",
-        icon=":material/calendar_month:",
+    lender_repeat_borrowers_page = st.Page(
+        os.path.join(PAGE_DIR, LENDER_REPEAT_BORROWERS_PAGE_FILE),
+        title="Repeat Borrowers",
+        icon=":material/group:",
+    )
+    lender_borrower_churn_page = st.Page(
+        os.path.join(PAGE_DIR, LENDER_BORROWER_CHURN_PAGE_FILE),
+        title="Borrower Churn Rate",
+        icon=":material/person_cancel:",
+    )
+    lender_borrower_migration_page = st.Page(
+        os.path.join(PAGE_DIR, LENDER_BORROWER_MIGRATION_PAGE_FILE),
+        title="Borrower Migration",
+        icon=":material/directions_walk:",
     )
 
     pages = {
         "Loan Analysis": [loan_analysis_page],
-        "Borrower Activity": [
+        "Borrower Analysis": [
             borrower_loans_page,
             borrower_timeline_page,
         ],
-        "Lender Activity": [lender_loans_page, lender_timeline_page],
+        "Lender Analysis": [
+            lender_loans_page,
+            lender_repeat_borrowers_page,
+            lender_borrower_churn_page,
+            lender_borrower_migration_page,
+        ],
         "Borrower-Lender Relationship": [
             borrower_lenders_page,
             # relationships_page,

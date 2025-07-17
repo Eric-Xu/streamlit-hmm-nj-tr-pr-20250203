@@ -26,7 +26,7 @@ with streamlit_analytics.track(
 ):
     app = MultiApp()
 
-    if not check_password():
-        st.stop()
+    # if not check_password():
+    #     st.stop()
 
     app.run()

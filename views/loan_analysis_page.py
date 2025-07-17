@@ -1,3 +1,5 @@
+import math
+from datetime import datetime
 from typing import Dict, List, Tuple
 
 import altair as alt
@@ -7,8 +9,163 @@ import streamlit as st
 from constants.css import GREEN_HEX, RED_HEX
 from constants.dataset import END_DATE, LOCATION, START_DATE
 from pipelines.prepare_loan_data import prep_data
-from utils.gui import show_st_h1, show_st_h2
+from utils.gui import show_default_footer, show_st_h1, show_st_h2
 from utils.io import load_json
+
+ABBR_MONTH_KEYS = [
+    "a. Jan",
+    "b. Feb",
+    "c. Mar",
+    "d. Apr",
+    "e. May",
+    "f. Jun",
+    "g. Jul",
+    "h. Aug",
+    "i. Sep",
+    "j. Oct",
+    "k. Nov",
+    "l. Dec",
+]
+
+FULL_MONTH_KEYS = [
+    "January",
+    "February",
+    "March",
+    "April",
+    "May",
+    "June",
+    "July",
+    "August",
+    "September",
+    "October",
+    "November",
+    "December",
+]
+
+
+def _create_polar_bar_chart(prepped_data: List[Dict]) -> alt.LayerChart:
+    monthly_num_loans: List[int] = _get_monthly_num_loans(prepped_data)
+    month_to_num_loans: Dict[str, int] = _get_month_to_num_loans(monthly_num_loans)
+    max_num_loans_month: str = max(month_to_num_loans.items(), key=lambda x: x[1])[0]
+    max_num_loans: int = month_to_num_loans[max_num_loans_month]
+
+    source = pd.DataFrame(
+        {
+            "month": month_to_num_loans.keys(),
+            "loan_count": month_to_num_loans.values(),
+        }
+    )
+
+    polar_bars = (
+        alt.Chart(source)
+        .mark_arc(stroke="white", fill=GREEN_HEX, tooltip=True)
+        .encode(
+            theta=alt.Theta("month:O"),
+            radius=alt.Radius("loan_count").scale(type="linear"),
+            radius2=alt.datum(1),
+        )
+    )
+
+    # Create the circular tick marks for the number of loan count
+    tick_mark_config: Dict[str, int] = _get_polar_bar_tick_mark_config(max_num_loans)
+    tick_mark_rings = (
+        alt.Chart(
+            pd.DataFrame(
+                {
+                    "ring": range(
+                        tick_mark_config["tm_min"],
+                        tick_mark_config["tm_max"] + 1,
+                        tick_mark_config["tm_step"],
+                    )
+                }
+            )
+        )
+        .mark_arc(stroke="lightgrey", fill=None)
+        .encode(theta=alt.value(2 * math.pi), radius=alt.Radius("ring").stack(False))
+    )
+    tick_mark_labels = tick_mark_rings.mark_text(
+        color="grey", radiusOffset=5, align="left"
+    ).encode(text="ring", theta=alt.value(math.pi / 4))
+
+    # Create the straight axis lines for the time of the day
+    axis_lines = (
+        alt.Chart(
+            pd.DataFrame(
+                {
+                    "radius": tick_mark_config["tm_max"],
+                    "theta": math.pi / 2,
+                    "month": ["0. Dec", "3. Mar", "6. Jun", "9. Sep"],
+                }  # "month" values are sorted in ascending order.
+            )
+        )
+        .mark_arc(stroke="lightgrey", fill=None)
+        .encode(
+            theta=alt.Theta("theta").stack(True),
+            radius=alt.Radius("radius"),
+            radius2=alt.datum(1),
+        )
+    )
+    axis_lines_labels = axis_lines.mark_text(
+        color="grey",
+        radiusOffset=5,
+        thetaOffset=-math.pi / 4,
+        # These adjustments could be left out with a larger radius offset, but they make the label positioning a bit clearner
+        align=alt.expr(
+            'datum.month == "4. Sep" ? "right" : datum.month == "1. Mar" ? "left" : "center"'
+        ),
+        baseline=alt.expr(
+            'datum.month == "0. Dec" ? "bottom" : datum.month == "2. Jun" ? "top" : "middle"'
+        ),
+    ).encode(text="month")
+
+    chart = alt.layer(
+        tick_mark_rings,
+        axis_lines,
+        polar_bars,
+        tick_mark_labels,
+        axis_lines_labels,
+    )
+
+    return chart
+
+
+def _get_month_to_num_loans(
+    monthly_counts: List[int], month_key_type: str = "abbreviated"
+) -> Dict[str, int]:
+    if month_key_type == "abbreviated":
+        month_keys = ABBR_MONTH_KEYS
+    else:
+        month_keys = FULL_MONTH_KEYS
+
+    month_to_num_loans = dict(zip(month_keys, monthly_counts))
+    return month_to_num_loans
+
+
+def _get_monthly_num_loans(prepped_data: List[Dict]) -> List[int]:
+    """
+    Counts the number of loans for each month based on the 'recordingDate'
+    field in the input data.
+    Returns a list of 12 integers, where each element represents the number
+    of loans recorded in that month (index 0 = January, 11 = December).
+    Months with no loans will have a count of 0.
+    """
+    # Initialize counts for each month (0-11 for Jan-Dec)
+    monthly_counts = [0] * 12
+
+    for loan in prepped_data:
+        recording_date = loan.get("recordingDate")
+        if recording_date:
+            try:
+                # Parse the date string (format: YYYY-MM-DD)
+                date_obj = datetime.strptime(recording_date, "%Y-%m-%d")
+                # Get month (0-11, where 0=January)
+                month_index = date_obj.month - 1
+                monthly_counts[month_index] += 1
+            except (ValueError, TypeError):
+                # Skip invalid dates
+                continue
+
+    return monthly_counts
 
 
 def _get_selected_data(
@@ -65,8 +222,6 @@ def _show_bar_chart(borrower_loan_data: List[Dict]) -> None:
     # Sort by loan amount ascending
     df_sorted = df.sort_values(by="Loan Amount ($)", ascending=True)
 
-    st.markdown("#### Loan Amount Distribution")
-
     # Bar chart
     bar = (
         alt.Chart(df_sorted)
@@ -92,7 +247,8 @@ def _show_bar_chart(borrower_loan_data: List[Dict]) -> None:
     )
 
     # Overlay
-    chart = bar + average_line
+    # chart = bar + average_line
+    chart = alt.layer(bar, average_line)
     st.altair_chart(chart, use_container_width=True)
 
 
@@ -118,27 +274,24 @@ def _show_introduction(prepped_data: List[Dict]) -> None:
     total_loans: int = len(prepped_data)
     loan_amounts = [int(item.get("loanAmount", 0)) for item in prepped_data]
     avg_loan_amount: float = sum(loan_amounts) / total_loans if total_loans > 0 else 0
-    unique_borrowers: int = len(set(item.get("buyerName", "") for item in prepped_data))
-    unique_lenders: int = len(set(item.get("lenderName", "") for item in prepped_data))
+    monthly_num_loans: List[int] = _get_monthly_num_loans(prepped_data)
+    month_to_num_loans: Dict[str, int] = _get_month_to_num_loans(
+        monthly_num_loans, month_key_type="full"
+    )
+    max_num_loans_month: str = max(month_to_num_loans.items(), key=lambda x: x[1])[0]
+    max_num_loans: int = month_to_num_loans[max_num_loans_month]
+    min_num_loans_month: str = min(month_to_num_loans.items(), key=lambda x: x[1])[0]
+    min_num_loans: int = month_to_num_loans[min_num_loans_month]
 
     st.markdown(
         f"""
         There are **{total_loans}** loans in total, with an average amount of **${avg_loan_amount:,.0f}**. 
         
-        These loans involve **{unique_lenders}** lenders and **{unique_borrowers}** borrowers.
-
-        This data covers loans recorded from **{START_DATE}** to **{END_DATE}**.
+        **{max_num_loans_month}** had the highest lending activity with **{max_num_loans}**
+        loans, while **{min_num_loans_month}** was the slowest month with **{min_num_loans}** 
+        loans recorded.
         """
     )
-
-
-def _show_metrics_all_data(prepped_data: List[Dict]) -> None:
-    unique_borrowers: int = len(set(item.get("buyerName", "") for item in prepped_data))
-    unique_lenders: int = len(set(item.get("lenderName", "") for item in prepped_data))
-
-    col1, col2 = st.columns(2)
-    col1.metric("Number of Lenders", unique_lenders, border=True)
-    col2.metric("Number of Borrowers", unique_borrowers, border=True)
 
 
 def _show_metrics_selected_data(borrower_loan_data: List[Dict]) -> None:
@@ -148,6 +301,43 @@ def _show_metrics_selected_data(borrower_loan_data: List[Dict]) -> None:
     col1.metric("Selected Loans", len(amounts))
     col2.metric("Average Loan", f"${sum(amounts)/len(amounts):,.0f}")
     col3.metric("Highest Loan", f"${max(amounts):,.0f}")
+
+
+def _show_polar_bar_all_data(prepped_data: List[Dict]) -> None:
+    polar_bar_chart: alt.LayerChart = _create_polar_bar_chart(prepped_data)
+    st.altair_chart(polar_bar_chart, use_container_width=True)
+
+
+def _get_polar_bar_tick_mark_config(max_num_loans: int) -> Dict[str, int]:
+    tick_mark_config: Dict[str, int] = dict()
+
+    unit: int = int(max_num_loans * 0.25)
+    if unit > 250:
+        step = 500
+    elif unit > 100:
+        step = 250
+    elif unit > 50:
+        step = 100
+    elif unit > 25:
+        step = 50
+    elif unit > 10:
+        step = 25
+    elif unit > 5:
+        step = 10
+    else:
+        step = 5
+
+    # Calculate the next number higher than max_num_loans that is divisible by step
+    if max_num_loans % step == 0:
+        tm_max = max_num_loans
+    else:
+        tm_max = ((max_num_loans // step) + 1) * step
+
+    tick_mark_config["tm_max"] = tm_max
+    tick_mark_config["tm_min"] = step
+    tick_mark_config["tm_step"] = step
+
+    return tick_mark_config
 
 
 def _show_slider(prepped_data: List[Dict]) -> Tuple[int, int]:
@@ -167,22 +357,28 @@ def _show_slider(prepped_data: List[Dict]) -> Tuple[int, int]:
     return user_min_loan_amount, user_max_loan_amount
 
 
-def render_loan_analysis_page():
+def render_page():
     show_st_h1("Loan Analysis")
     show_st_h2(LOCATION, w_divider=True)
 
     prepped_data_file_path: str = prep_data()
     prepped_data: List[Dict] = load_json(prepped_data_file_path)
 
+    st.write("")
     _show_introduction(prepped_data)
 
     st.write("")
-    _show_metrics_all_data(prepped_data)
+    st.markdown("#### Number of Loans by Month")
 
     st.write("")
+    _show_polar_bar_all_data(prepped_data)
+
+    st.markdown("#### Loan Amount Distribution")
+
     st.write("")
     user_min_loan_amount, user_max_loan_amount = _show_slider(prepped_data)
 
+    st.write("")
     selected_data: List[Dict] = _get_selected_data(
         prepped_data, user_min_loan_amount, user_max_loan_amount
     )
@@ -198,5 +394,7 @@ def render_loan_analysis_page():
 
     _show_df(borrower_loan_data)
 
+    show_default_footer()
 
-render_loan_analysis_page()
+
+render_page()

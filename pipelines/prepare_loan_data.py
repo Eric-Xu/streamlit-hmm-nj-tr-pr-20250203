@@ -94,7 +94,7 @@ def prep_data() -> str:
         borrower_activities_df,
         stddev_outlier_strategy,
         column="loanAmount",
-        threshold=3.0,
+        threshold=2.0,
     )
 
     prepped_data_df: DataFrame = _transform_data(borrower_activities_df)
