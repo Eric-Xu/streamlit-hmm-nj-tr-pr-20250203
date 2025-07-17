@@ -60,7 +60,7 @@ def load_css() -> None:
 def setup_page_navigation() -> StreamlitPage:
     loan_analysis_page = st.Page(
         os.path.join(PAGE_DIR, LOAN_ANALYSIS_PAGE_FILE),
-        title="Loans",
+        title="Market Overview",
         icon=":material/bar_chart:",
         default=True,
     )

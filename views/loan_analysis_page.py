@@ -1,5 +1,4 @@
 import math
-from datetime import datetime
 from typing import Dict, List, Tuple
 
 import altair as alt
@@ -9,8 +8,15 @@ import streamlit as st
 from constants.css import GREEN_HEX, RED_HEX
 from constants.dataset import END_DATE, LOCATION, START_DATE
 from pipelines.prepare_loan_data import prep_data
+from utils.formatting import to_currency
 from utils.gui import show_default_footer, show_st_h1, show_st_h2
 from utils.io import load_json
+from utils.metrics import (
+    get_avg_loan_amount,
+    get_monthly_num_loans,
+    get_top_lenders_by_volume,
+    get_total_volume,
+)
 
 ABBR_MONTH_KEYS = [
     "a. Jan",
@@ -44,7 +50,7 @@ FULL_MONTH_KEYS = [
 
 
 def _create_polar_bar_chart(prepped_data: List[Dict]) -> alt.LayerChart:
-    monthly_num_loans: List[int] = _get_monthly_num_loans(prepped_data)
+    monthly_num_loans: List[int] = get_monthly_num_loans(prepped_data)
     month_to_num_loans: Dict[str, int] = _get_month_to_num_loans(monthly_num_loans)
     max_num_loans_month: str = max(month_to_num_loans.items(), key=lambda x: x[1])[0]
     max_num_loans: int = month_to_num_loans[max_num_loans_month]
@@ -141,33 +147,6 @@ def _get_month_to_num_loans(
     return month_to_num_loans
 
 
-def _get_monthly_num_loans(prepped_data: List[Dict]) -> List[int]:
-    """
-    Counts the number of loans for each month based on the 'recordingDate'
-    field in the input data.
-    Returns a list of 12 integers, where each element represents the number
-    of loans recorded in that month (index 0 = January, 11 = December).
-    Months with no loans will have a count of 0.
-    """
-    # Initialize counts for each month (0-11 for Jan-Dec)
-    monthly_counts = [0] * 12
-
-    for loan in prepped_data:
-        recording_date = loan.get("recordingDate")
-        if recording_date:
-            try:
-                # Parse the date string (format: YYYY-MM-DD)
-                date_obj = datetime.strptime(recording_date, "%Y-%m-%d")
-                # Get month (0-11, where 0=January)
-                month_index = date_obj.month - 1
-                monthly_counts[month_index] += 1
-            except (ValueError, TypeError):
-                # Skip invalid dates
-                continue
-
-    return monthly_counts
-
-
 def _get_selected_data(
     prepped_data: List[Dict], user_min_loan_amount: int, user_max_loan_amount: int
 ) -> List[Dict]:
@@ -178,6 +157,18 @@ def _get_selected_data(
             selected_data.append(borrower_activity)
 
     return selected_data
+
+
+def _get_top_lenders_marketshare_vol_pct(prepped_data: List[Dict], top_n: int) -> float:
+    total_volume: int = get_total_volume(prepped_data)
+    top_lenders_by_volume: List[Dict] = get_top_lenders_by_volume(prepped_data, top_n)
+    top_lenders_volume = sum(
+        int(item.get("loanAmount", 0)) for item in top_lenders_by_volume
+    )
+    if total_volume == 0:
+        return 0.0
+
+    return (top_lenders_volume / total_volume) * 100
 
 
 def _prep_borrower_loan_data(selected_data: List[Dict]) -> List[Dict]:
@@ -272,9 +263,8 @@ def _show_df(borrower_loan_data: List[Dict]) -> None:
 
 def _show_introduction(prepped_data: List[Dict]) -> None:
     total_loans: int = len(prepped_data)
-    loan_amounts = [int(item.get("loanAmount", 0)) for item in prepped_data]
-    avg_loan_amount: float = sum(loan_amounts) / total_loans if total_loans > 0 else 0
-    monthly_num_loans: List[int] = _get_monthly_num_loans(prepped_data)
+    avg_loan_amount: float = get_avg_loan_amount(prepped_data)
+    monthly_num_loans: List[int] = get_monthly_num_loans(prepped_data)
     month_to_num_loans: Dict[str, int] = _get_month_to_num_loans(
         monthly_num_loans, month_key_type="full"
     )
@@ -282,14 +272,24 @@ def _show_introduction(prepped_data: List[Dict]) -> None:
     max_num_loans: int = month_to_num_loans[max_num_loans_month]
     min_num_loans_month: str = min(month_to_num_loans.items(), key=lambda x: x[1])[0]
     min_num_loans: int = month_to_num_loans[min_num_loans_month]
+    top_lenders_vol_pct_marketshare: float = _get_top_lenders_marketshare_vol_pct(
+        prepped_data, 10
+    )
+    total_market_volume: int = get_total_volume(prepped_data)
 
     st.markdown(
         f"""
-        There are **{total_loans}** loans in total, with an average amount of **${avg_loan_amount:,.0f}**. 
+        For the period between {START_DATE} to {END_DATE}...
         
-        **{max_num_loans_month}** had the highest lending activity with **{max_num_loans}**
-        loans, while **{min_num_loans_month}** was the slowest month with **{min_num_loans}** 
-        loans recorded.
+        There were **{total_loans}** loans recorded in total, with an average
+        amount of **${avg_loan_amount:,.0f}** per loan. 
+        
+        The top 10 lenders by loan count accounted for **{round(top_lenders_vol_pct_marketshare, 1)}%**
+        of the total market volume (**{to_currency(total_market_volume)}**).
+
+        **{max_num_loans_month}** had the highest origination activity with 
+        **{max_num_loans}** loans recorded, while **{min_num_loans_month}** 
+        was the slowest month with **{min_num_loans}**.
         """
     )
 
@@ -299,8 +299,8 @@ def _show_metrics_selected_data(borrower_loan_data: List[Dict]) -> None:
 
     col1, col2, col3 = st.columns(3)
     col1.metric("Selected Loans", len(amounts))
-    col2.metric("Average Loan", f"${sum(amounts)/len(amounts):,.0f}")
-    col3.metric("Highest Loan", f"${max(amounts):,.0f}")
+    col2.metric("Average Amount", f"${sum(amounts)/len(amounts):,.0f}")
+    col3.metric("Highest Amount", f"${max(amounts):,.0f}")
 
 
 def _show_polar_bar_all_data(prepped_data: List[Dict]) -> None:
@@ -347,7 +347,7 @@ def _show_slider(prepped_data: List[Dict]) -> Tuple[int, int]:
     slider_default_max = int(max_loan_amount * 0.9)
 
     user_min_loan_amount, user_max_loan_amount = st.slider(
-        "**Select loans by adjusting the minimum and maximum loan amounts.**",
+        "**Select loans by adjusting the minimum and maximum loan amount.**",
         min_value=0,
         max_value=max_loan_amount,
         value=(slider_default_min, slider_default_max),
@@ -359,7 +359,7 @@ def _show_slider(prepped_data: List[Dict]) -> Tuple[int, int]:
 
 def render_page():
     show_st_h1("Loan Analysis")
-    show_st_h2(LOCATION, w_divider=True)
+    show_st_h2(f"Market Overview: {LOCATION}", w_divider=True)
 
     prepped_data_file_path: str = prep_data()
     prepped_data: List[Dict] = load_json(prepped_data_file_path)
