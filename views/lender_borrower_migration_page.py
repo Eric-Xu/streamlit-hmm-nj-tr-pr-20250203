@@ -1,4 +1,4 @@
-from typing import Dict, List
+from typing import Dict, List, Set, Tuple
 
 import altair as alt
 import numpy as np
@@ -12,19 +12,19 @@ from constants.css import BLUE_HEX, GRAY_HEX, GREEN_HEX, RED_HEX
 from pipelines.prepare_loan_data import prep_data
 from utils.gui import show_st_h1, show_st_h2
 from utils.io import load_json
-from utils.party_churn import get_fromto_lenders_w_counts
+from utils.party_churn import get_borrower_fromto_lenders, get_fromto_lenders_w_counts
 
 MIN_BORROWER_CHURN_THRESHOLD = 1
 
 
 def _create_chord_diagram(prepped_data: List[Dict]) -> Figure:
     # Count occurrences of each (from_lender, to_lender) pair
-    fromto_lenders_w_counts: List[List[str | int]] = get_fromto_lenders_w_counts(
+    fromto_lenders_w_counts: List[Tuple[str, str, int]] = get_fromto_lenders_w_counts(
         prepped_data
     )
 
     # Remove records to reduce chart clutter
-    fromto_lender_w_min_counts: List[List[str | int]] = [
+    fromto_lender_w_min_counts: List[Tuple[str, str, int]] = [
         row
         for row in fromto_lenders_w_counts
         if int(row[2]) > MIN_BORROWER_CHURN_THRESHOLD
@@ -89,24 +89,36 @@ def _create_horizontal_bar_chart(chart_data: pd.DataFrame) -> alt.Chart:
 def _get_horizontal_bar_chart_data(
     prepped_data: List[Dict], top_n=None
 ) -> pd.DataFrame:
-    fromto_lenders_w_counts: List[List[str | int]] = get_fromto_lenders_w_counts(
+    borrower_fromto_lenders: List[Tuple[str, str, str]] = get_borrower_fromto_lenders(
         prepped_data
     )
-    st.write(fromto_lenders_w_counts)
 
-    # Aggregate lost and gained counts per lender
-    lost = {}
-    gained = {}
-    for from_lender, to_lender, count in fromto_lenders_w_counts:
-        lost[from_lender] = lost.get(from_lender, 0) + count
-        gained[to_lender] = gained.get(to_lender, 0) + count
+    # Calculate lost and gained borrower counts per lender (unique borrowers only)
+    lender_to_lost_count: Dict[str, int] = {}
+    lender_to_gained_count: Dict[str, int] = {}
+    lender_to_lost_borrowers: Dict[str, Set] = {}
+    lender_to_gained_borrowers: Dict[str, Set] = {}
+    for churned_borrower, from_lender, to_lender in borrower_fromto_lenders:
+        if from_lender not in lender_to_lost_borrowers:
+            lender_to_lost_borrowers[from_lender] = set()
+        if to_lender not in lender_to_gained_borrowers:
+            lender_to_gained_borrowers[to_lender] = set()
+        lender_to_lost_borrowers[from_lender].add(churned_borrower)
+        lender_to_gained_borrowers[to_lender].add(churned_borrower)
+    lender_to_lost_count = {
+        lender: len(borrowers) for lender, borrowers in lender_to_lost_borrowers.items()
+    }
+    lender_to_gained_count = {
+        lender: len(borrowers)
+        for lender, borrowers in lender_to_gained_borrowers.items()
+    }
 
-    data = []
-    for lender, num in lost.items():
+    data: List[Dict] = []
+    for lender, num in lender_to_lost_count.items():
         data.append(
             {"num_borrowers": -abs(num), "lender": lender, "borrower_status": "lost"}
         )
-    for lender, num in gained.items():
+    for lender, num in lender_to_gained_count.items():
         data.append(
             {"num_borrowers": abs(num), "lender": lender, "borrower_status": "gained"}
         )
@@ -145,6 +157,7 @@ def _show_chord_diagram(prepped_data: List[Dict]) -> None:
     st.info(
         f"""
         ##### :material/cognition: How to Interpret the Chart
+        TODO
         """
     )
 
@@ -161,10 +174,15 @@ def _show_horizontal_bar_chart(prepped_data: List[Dict]) -> None:
         ##### :material/cognition: How to Interpret the Chart
         This chart aims to illustrate each lender's net borrower migration. A 
         lender with significantly higher gains than losses demonstrates strong 
-        performance in both attracting borrowers from competitors and retaining 
-        existing customers.
+        performance in both attracting business from competitors' clients and
+        minimizing their own borrower churn.
         """
     )
+
+    on = st.toggle("Show Chart Data")
+
+    if on:
+        st.dataframe(chart_data_top_n)
 
 
 def _show_introduction() -> None:

@@ -65,19 +65,20 @@ def get_lender_to_churned_borrowers(prepped_data: List[Dict]) -> Dict[str, List[
     return lender_to_churned
 
 
-def get_fromto_lenders(prepped_data: List[Dict]) -> List[Tuple[str, str]]:
+def get_borrower_fromto_lenders(prepped_data: List[Dict]) -> List[Tuple[str, str, str]]:
     """
     For each lender, find borrowers who have churned (i.e., their last loan was to a different lender),
-    and create a list of (from_lender, to_lender) pairs representing the migration of each churned borrower
-    from their previous lender to their new lender.
+    and create a list of (churned_borrower, from_lender, to_lender) triplets representing the migration
+    of each churned borrower from their previous lender to their new lender.
 
     Args:
         prepped_data (List[Dict]): List of loan records, each as a dictionary.
 
     Returns:
-        List[Tuple[str, str]]: List of (from_lender, to_lender) pairs for each churned borrower.
+        List[Tuple[str, str, str]]: List of (churned_borrower, from_lender, to_lender)
+            triplets for each churned borrower.
     """
-    fromto_lenders: List[Tuple[str, str]] = []
+    borrower_fromto_lenders: List[Tuple[str, str, str]] = []
 
     borrower_to_last_lender: Dict[str, str] = get_borrower_to_last_lender(prepped_data)
     lender_to_churned_borrowers: Dict[str, List[str]] = get_lender_to_churned_borrowers(
@@ -88,27 +89,35 @@ def get_fromto_lenders(prepped_data: List[Dict]) -> List[Tuple[str, str]]:
         for churned_borrower in churned_borrowers:
             to_lender = borrower_to_last_lender.get(churned_borrower)
             if to_lender and to_lender != from_lender:
-                fromto_lenders.append((from_lender, to_lender))
+                borrower_fromto_lenders.append(
+                    (churned_borrower, from_lender, to_lender)
+                )
 
-    return fromto_lenders
+    return borrower_fromto_lenders
 
 
-def get_fromto_lenders_w_counts(prepped_data: List[Dict]) -> List[List[str | int]]:
+def get_fromto_lenders_w_counts(prepped_data: List[Dict]) -> List[Tuple[str, str, int]]:
     """
-    For each lender, count the number of borrowers who migrated from one lender to another (churned),
-    and return a list of [from_lender, to_lender, count] records.
+    Count the number of times that a borrower migrated from one lender to another
+    (churned), and return a list of [from_lender, to_lender, count] records.
 
     Args:
         prepped_data (List[Dict]): List of loan records, each as a dictionary.
 
     Returns:
-        List[List[str | int]]: List of [from_lender, to_lender, count] records, where count is the number of borrowers
+        List[Tuple[str, str, int]]: List of [from_lender, to_lender, count] records, where count is the number of borrowers
             who migrated from from_lender to to_lender.
     """
-    fromto_lenders: List[Tuple[str, str]] = get_fromto_lenders(prepped_data)
+    borrower_fromto_lenders: List[Tuple[str, str, str]] = get_borrower_fromto_lenders(
+        prepped_data
+    )
+    fromto_lenders: List[Tuple[str, str]] = [
+        (from_lender, to_lender)
+        for _, from_lender, to_lender in borrower_fromto_lenders
+    ]
     fromto_counter = Counter(fromto_lenders)
-    fromto_lenders_w_counts: List[List[str | int]] = [
-        [from_lender, to_lender, count]
+    fromto_lenders_w_counts: List[Tuple[str, str, int]] = [
+        (from_lender, to_lender, count)
         for (from_lender, to_lender), count in fromto_counter.items()
     ]
 

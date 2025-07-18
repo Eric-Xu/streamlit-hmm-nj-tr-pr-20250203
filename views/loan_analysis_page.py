@@ -208,12 +208,9 @@ def _show_bar_chart(borrower_loan_data: List[Dict]) -> None:
     used instead.
     """
     df = pd.DataFrame(borrower_loan_data)
-    # Rename columns for display
     df = df.rename(columns={"borrower": "Borrower", "amount": "Loan Amount ($)"})
-    # Sort by loan amount ascending
     df_sorted = df.sort_values(by="Loan Amount ($)", ascending=True)
 
-    # Bar chart
     bar = (
         alt.Chart(df_sorted)
         .mark_bar(color=GREEN_HEX)
@@ -225,7 +222,6 @@ def _show_bar_chart(borrower_loan_data: List[Dict]) -> None:
         .properties(height=500, width="container")
     )
 
-    # Average line
     average_line = (
         alt.Chart(df_sorted)
         .mark_rule(color=RED_HEX, size=2)
@@ -237,8 +233,6 @@ def _show_bar_chart(borrower_loan_data: List[Dict]) -> None:
         )
     )
 
-    # Overlay
-    # chart = bar + average_line
     chart = alt.layer(bar, average_line)
     st.altair_chart(chart, use_container_width=True)
 
