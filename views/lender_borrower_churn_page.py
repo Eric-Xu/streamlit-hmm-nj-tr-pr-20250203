@@ -1,12 +1,8 @@
-from collections import Counter
-from typing import Dict, List, Tuple
+from typing import Dict, List
 
 import altair as alt
 import pandas as pd
 import streamlit as st
-from matplotlib.figure import Figure
-from pycirclize import Circos, config
-from pycirclize.parser import Matrix
 
 from constants.css import GRAY_HEX, RED_HEX
 from pipelines.prepare_loan_data import prep_data
@@ -142,7 +138,7 @@ def _show_df(prepped_data: List[Dict], lender: str) -> None:
             "buyerName": st.column_config.TextColumn("Borrower Name"),
             "borrower_num_loans": st.column_config.NumberColumn("Number of Loans"),
             "total_volume": st.column_config.NumberColumn(
-                "Total Volume", format="dollar", width="medium"
+                "Total Loan Volume", format="dollar"
             ),
             "has_churned": st.column_config.TextColumn("Has Churned"),
             "last_lender": st.column_config.TextColumn("Last Lender"),
@@ -168,16 +164,11 @@ def _show_metrics_selected_data(prepped_data: List[Dict], lender: str) -> None:
     if not selected_data:
         return
     else:
-        borrower_to_last_lender: Dict[str, str] = get_borrower_to_last_lender(
-            prepped_data
-        )
         lender_to_all_borrowers: Dict[str, List[str]] = get_lender_to_all_borrowers(
             prepped_data
         )
         lender_to_churned_borrowers: Dict[str, List[str]] = (
-            get_lender_to_churned_borrowers(
-                lender_to_all_borrowers, borrower_to_last_lender
-            )
+            get_lender_to_churned_borrowers(prepped_data)
         )
         all_borrowers = set(lender_to_all_borrowers.get(lender, []))
         churned_borrowers = set(lender_to_churned_borrowers.get(lender, []))
@@ -201,12 +192,8 @@ def _show_scatterplot(prepped_data: List[Dict]) -> None:
     Recently churned borrowers (scatterplot of "num recently churned" to "lender num loans").
         - Given a lender, list any recently churned borrowers (last loan went to a different lender)
     """
-    borrower_to_last_lender: Dict[str, str] = get_borrower_to_last_lender(prepped_data)
-    lender_to_all_borrowers: Dict[str, List[str]] = get_lender_to_all_borrowers(
-        prepped_data
-    )
     lender_to_churned_borrowers: Dict[str, List[str]] = get_lender_to_churned_borrowers(
-        lender_to_all_borrowers, borrower_to_last_lender
+        prepped_data
     )
 
     # Prepare data for scatter plot: x = lender_num_loans, y = number of churned borrowers
@@ -247,10 +234,10 @@ def _show_scatterplot(prepped_data: List[Dict]) -> None:
         f"""
         ##### :material/cognition: How to Interpret the Chart
         Each point represents a lender, with its position corresponding to the 
-        total number of loans on the X-axis and the number of borrowers who have 
-        churned on the Y-axis. For datasets with 10 or more points, a line of 
-        best fit is drawn. The farther a point lies above the line, the higher 
-        its churn rate relative to other lenders, and vice versa.
+        total number of loans originated on the X-axis and the number of borrowers
+        who have churned on the Y-axis. For datasets with 10 or more points, a 
+        line of best fit is also shown. The farther a point lies above the line, 
+        the higher the churn rate relative to other lenders, and vice versa.
         """
     )
 

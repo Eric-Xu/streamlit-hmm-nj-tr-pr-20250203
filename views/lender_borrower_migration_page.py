@@ -1,51 +1,32 @@
-from collections import Counter
-from typing import Dict, List, Tuple
+from typing import Dict, List
 
+import altair as alt
+import numpy as np
 import pandas as pd
 import streamlit as st
 from matplotlib.figure import Figure
 from pycirclize import Circos
 from pycirclize.parser import Matrix
 
-from constants.css import GRAY_HEX, GREEN_HEX
+from constants.css import BLUE_HEX, GRAY_HEX, GREEN_HEX, RED_HEX
 from pipelines.prepare_loan_data import prep_data
 from utils.gui import show_st_h1, show_st_h2
 from utils.io import load_json
-from utils.party_churn import (
-    get_borrower_to_last_lender,
-    get_lender_to_all_borrowers,
-    get_lender_to_churned_borrowers,
-)
+from utils.party_churn import get_fromto_lenders_w_counts
 
 MIN_BORROWER_CHURN_THRESHOLD = 1
 
 
 def _create_chord_diagram(prepped_data: List[Dict]) -> Figure:
-    borrower_to_last_lender: Dict[str, str] = get_borrower_to_last_lender(prepped_data)
-    lender_to_all_borrowers: Dict[str, List[str]] = get_lender_to_all_borrowers(
+    # Count occurrences of each (from_lender, to_lender) pair
+    fromto_lenders_w_counts: List[List[str | int]] = get_fromto_lenders_w_counts(
         prepped_data
     )
-    lender_to_churned_borrowers: Dict[str, List[str]] = get_lender_to_churned_borrowers(
-        lender_to_all_borrowers, borrower_to_last_lender
-    )
-    fromto_lenders: List[Tuple[str, str]] = []
-    for from_lender, churned_borrowers in lender_to_churned_borrowers.items():
-        for churned_borrower in churned_borrowers:
-            to_lender = borrower_to_last_lender.get(churned_borrower)
-            if to_lender and to_lender != from_lender:
-                fromto_lenders.append((from_lender, to_lender))
-
-    # Count occurrences of each (from_lender, to_lender) pair
-    fromto_counter = Counter(fromto_lenders)
-    fromto_lender_w_counts: List[List[str | int]] = [
-        [from_lender, to_lender, count]
-        for (from_lender, to_lender), count in fromto_counter.items()
-    ]
 
     # Remove records to reduce chart clutter
     fromto_lender_w_min_counts: List[List[str | int]] = [
         row
-        for row in fromto_lender_w_counts
+        for row in fromto_lenders_w_counts
         if int(row[2]) > MIN_BORROWER_CHURN_THRESHOLD
     ]
 
@@ -82,6 +63,81 @@ def _create_chord_diagram(prepped_data: List[Dict]) -> Figure:
     return fig
 
 
+def _create_horizontal_bar_chart(chart_data: pd.DataFrame) -> alt.Chart:
+    color_scale = alt.Scale(domain=["lost", "gained"], range=[RED_HEX, BLUE_HEX])
+    chart = (
+        alt.Chart(chart_data)
+        .mark_bar()
+        .encode(
+            x=alt.X("num_borrowers:Q", title="Number of Borrowers Lost/Gained"),
+            y=alt.Y("lender:N", sort=None, title=None, axis=alt.Axis(labelLimit=0)),
+            color=alt.Color("borrower_status:N", scale=color_scale, legend=None),
+            tooltip=[
+                alt.Tooltip("num_borrowers:Q", title="num_borrowers"),
+                alt.Tooltip("lender:N", title="lender"),
+                alt.Tooltip("borrower_status:N", title="borrower_status"),
+            ],
+        )
+        .properties(
+            title=alt.TitleParams(text="Lenders with the Highest Borrower Migration")
+        )
+    )
+
+    return chart
+
+
+def _get_horizontal_bar_chart_data(
+    prepped_data: List[Dict], top_n=None
+) -> pd.DataFrame:
+    fromto_lenders_w_counts: List[List[str | int]] = get_fromto_lenders_w_counts(
+        prepped_data
+    )
+    st.write(fromto_lenders_w_counts)
+
+    # Aggregate lost and gained counts per lender
+    lost = {}
+    gained = {}
+    for from_lender, to_lender, count in fromto_lenders_w_counts:
+        lost[from_lender] = lost.get(from_lender, 0) + count
+        gained[to_lender] = gained.get(to_lender, 0) + count
+
+    data = []
+    for lender, num in lost.items():
+        data.append(
+            {"num_borrowers": -abs(num), "lender": lender, "borrower_status": "lost"}
+        )
+    for lender, num in gained.items():
+        data.append(
+            {"num_borrowers": abs(num), "lender": lender, "borrower_status": "gained"}
+        )
+    data_all: pd.DataFrame = pd.DataFrame(data)
+    st.write(data_all)
+
+    # Sort so that the lender with the highest gained num_borrowers comes first
+    data_all["tmp_gained"] = data_all.apply(
+        lambda row: row["num_borrowers"] if row["borrower_status"] == "gained" else 0,
+        axis=1,
+    )
+    data_all = data_all.sort_values(by="tmp_gained", ascending=False)
+    data_all = data_all.drop(columns=["tmp_gained"])
+
+    if top_n:
+        data_top_n_mostly_gained_records = data_all.head(top_n)
+        top_lenders = set(data_top_n_mostly_gained_records["lender"])
+        data_top_n_lost_records = data_all[
+            (data_all["lender"].isin(top_lenders))
+            & (data_all["borrower_status"] == "lost")
+        ]
+        data = pd.concat(
+            [data_top_n_mostly_gained_records, data_top_n_lost_records],
+            ignore_index=True,
+        )
+    else:
+        data = data_all
+
+    return data
+
+
 def _show_chord_diagram(prepped_data: List[Dict]) -> None:
     chord_diagram: Figure = _create_chord_diagram(prepped_data)
     st.pyplot(chord_diagram, use_container_width=True)
@@ -93,12 +149,30 @@ def _show_chord_diagram(prepped_data: List[Dict]) -> None:
     )
 
 
+def _show_horizontal_bar_chart(prepped_data: List[Dict]) -> None:
+    top_n = 20
+    chart_data_top_n: pd.DataFrame = _get_horizontal_bar_chart_data(prepped_data, top_n)
+
+    horizontal_bar_chart: alt.Chart = _create_horizontal_bar_chart(chart_data_top_n)
+    st.altair_chart(horizontal_bar_chart, use_container_width=True)
+
+    st.info(
+        f"""
+        ##### :material/cognition: How to Interpret the Chart
+        This chart aims to illustrate each lender's net borrower migration. A 
+        lender with significantly higher gains than losses demonstrates strong 
+        performance in both attracting borrowers from competitors and retaining 
+        existing customers.
+        """
+    )
+
+
 def _show_introduction() -> None:
     st.write(
         """
-        A "churned borrower" is defined as someone who previously received one or
-        more loans from the lender but has not returned for additional financing 
-        on their latest project.
+        “Borrower migration” is defined as the acquisition of a borrower who left 
+        another lender, or when a borrower seeks financing for their latest project
+        from a different lender.
     """
     )
 
@@ -113,7 +187,12 @@ def render_page() -> None:
     st.write("")
     _show_introduction()
 
-    st.markdown("#### Version 2: Where did churned borrowers go for new loans?")
+    st.write("")
+    st.write("")
+    _show_horizontal_bar_chart(prepped_data)
+
+    st.write("")
+    st.markdown("#### Where did churned borrowers go for new loans?")
 
     _show_chord_diagram(prepped_data)
 

@@ -25,7 +25,11 @@ def show_st_h2(text, w_divider=False) -> None:
 
 def show_default_footer() -> None:
     footer_text = f"""
-    The data on this page represents loans with the following properties: (a) Location: {LOCATION} (b) Recording Date: {START_DATE} to {END_DATE}.
+    The data on this page represents loans with the following properties:  
+    (a) Location: {LOCATION}.  
+    (b) Recording Date: {START_DATE} to {END_DATE}.  
+    (c) Property Types: XYZ.  
+    (d) Loan Types: XYZ.
     """
     show_st_footer_p(footer_text, w_divider=True)
 

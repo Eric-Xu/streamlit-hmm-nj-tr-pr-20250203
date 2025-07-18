@@ -281,15 +281,15 @@ def _show_introduction(prepped_data: List[Dict]) -> None:
         f"""
         For the period between {START_DATE} to {END_DATE}...
         
-        There were **{total_loans}** loans recorded in total, with an average
+        There were **{total_loans:,}** loans recorded in total, with an average
         amount of **${avg_loan_amount:,.0f}** per loan. 
         
         The top 10 lenders by loan count accounted for **{round(top_lenders_vol_pct_marketshare, 1)}%**
         of the total market volume (**{to_currency(total_market_volume)}**).
 
         **{max_num_loans_month}** had the highest origination activity with 
-        **{max_num_loans}** loans recorded, while **{min_num_loans_month}** 
-        was the slowest month with **{min_num_loans}**.
+        **{max_num_loans:,}** loans recorded, while **{min_num_loans_month}** 
+        was the slowest month with **{min_num_loans:,}**.
         """
     )
 
