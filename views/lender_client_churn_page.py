@@ -8,16 +8,84 @@ from constants.css import GRAY_HEX, RED_HEX
 from pipelines.prepare_loan_data import prep_data
 from utils.gui import show_default_footer, show_st_h1, show_st_h2
 from utils.io import load_json
+from utils.metrics import get_borrower_to_lender_num_loans, get_borrower_to_volume
 from utils.party_churn import (
     get_borrower_to_last_lender,
-    get_lender_to_all_borrowers,
+    get_borrower_to_lenders,
+    get_lender_to_borrowers,
     get_lender_to_lost_borrowers,
 )
 
 HIDE_SCATTERPLOT_LINE_THRESHOLD = 10
 
 
-def _get_lender_churn_scatter_data(
+def _create_scatterplot(chart_data: pd.DataFrame) -> alt.LayerChart:
+    scatter = (
+        alt.Chart(chart_data)
+        .mark_circle(size=120, color=RED_HEX, opacity=0.8)
+        .encode(
+            x=alt.X("lender_num_loans", title="Number of Loans"),
+            y=alt.Y("num_churned_borrowers", title="Number of Churned Borrowers"),
+            tooltip=["lender", "lender_num_loans", "num_churned_borrowers"],
+        )
+        .properties(width="container")
+    )
+    if len(chart_data) > HIDE_SCATTERPLOT_LINE_THRESHOLD:
+        line = (
+            alt.Chart(chart_data)
+            .transform_regression("lender_num_loans", "num_churned_borrowers")
+            .mark_line(color=GRAY_HEX)
+            .encode(x="lender_num_loans", y="num_churned_borrowers")
+        )
+        chart = alt.layer(line, scatter)
+    else:
+        chart = alt.layer(scatter)
+
+    chart = chart.properties(
+        title={
+            "text": "Comparison of Borrower Churn Among Lenders",
+            "anchor": "middle",
+        }
+    )
+
+    return chart
+
+
+def _get_df_data(prepped_data: List[Dict], lender: str) -> List[Dict]:
+    borrower_to_last_lender: Dict[str, str] = get_borrower_to_last_lender(prepped_data)
+    borrower_to_all_lenders: Dict[str, Set[str]] = get_borrower_to_lenders(prepped_data)
+    borrower_to_total_volume: Dict[str, int] = get_borrower_to_volume(prepped_data)
+    borrower_to_lender_num_loans: Dict[str, int] = get_borrower_to_lender_num_loans(
+        prepped_data, lender
+    )
+
+    records: List[Dict] = []
+    for record in prepped_data:
+        if record.get("lenderName", "") == lender:
+            borrower = record.get("buyerName")
+            if not isinstance(borrower, str):
+                continue
+
+            all_lenders = borrower_to_all_lenders.get(borrower, set())
+            last_lender = borrower_to_last_lender.get(borrower, "")
+
+            row = {
+                "all_lenders": " | ".join([str(l) for l in all_lenders]),
+                "borrower_num_loans_w_lender": borrower_to_lender_num_loans.get(
+                    borrower, 0
+                ),
+                "borrower_num_loans": record.get("borrower_num_loans"),
+                "buyerName": borrower,
+                "has_churned": "Yes" if last_lender != lender else "",
+                "last_lender": borrower_to_last_lender.get(borrower, ""),
+                "total_volume": borrower_to_total_volume.get(borrower, 0),
+            }
+            records.append(row)
+
+    return records
+
+
+def _get_scatterplot_data(
     prepped_data: List[Dict], lender_to_churned_borrowers: Dict[str, Set[str]]
 ) -> pd.DataFrame:
     """
@@ -49,100 +117,38 @@ def _get_lender_churn_scatter_data(
     return pd.DataFrame(lender_points)
 
 
-def _get_borrower_to_all_lenders(prepped_data: List[Dict]) -> Dict[str, List[str]]:
-    """
-    For each borrower (buyerName), return a list of unique lender names they've used.
-    """
-    borrower_to_lenders: Dict[str, set] = {}
-    for record in prepped_data:
-        borrower = record.get("buyerName")
-        lender = record.get("lenderName")
-        if not borrower or not lender:
-            continue
-        if borrower not in borrower_to_lenders:
-            borrower_to_lenders[borrower] = set()
-        borrower_to_lenders[borrower].add(lender)
-    # Convert sets to lists
-    return {
-        borrower: list(lenders) for borrower, lenders in borrower_to_lenders.items()
-    }
-
-
-def _get_borrower_to_total_volume(prepped_data: List[Dict]) -> Dict[str, int]:
-    """
-    For each borrower (buyerName), return the sum of loanAmount for that borrower in prepped_data.
-    """
-    borrower_to_total: Dict[str, float] = {}
-    for record in prepped_data:
-        borrower = record.get("buyerName")
-        loan_amount = record.get("loanAmount")
-        if loan_amount in (None, ""):
-            continue
-        try:
-            loan_amount = float(loan_amount)
-        except (TypeError, ValueError):
-            continue
-        if not borrower:
-            continue
-        if borrower not in borrower_to_total:
-            borrower_to_total[borrower] = 0.0
-        borrower_to_total[borrower] += loan_amount
-    # Convert to int for display
-    return {k: int(v) for k, v in borrower_to_total.items()}
-
-
 def _show_df(prepped_data: List[Dict], lender: str) -> None:
-    selected_data: List[Dict] = [
-        d for d in prepped_data if d.get("lenderName", "") == lender
-    ]
-    if not selected_data:
+    records: List[Dict] = _get_df_data(prepped_data, lender)
+
+    if not records:
         return
 
-    borrower_to_last_lender: Dict[str, str] = get_borrower_to_last_lender(prepped_data)
-    borrower_to_all_lenders: Dict[str, List[str]] = _get_borrower_to_all_lenders(
-        prepped_data
-    )
-    borrower_to_total_volume: Dict[str, int] = _get_borrower_to_total_volume(
-        prepped_data
-    )
-
-    # Add these values to each record in prepped_data by matching borrower name
-    for record in prepped_data:
-        borrower = record.get("buyerName")
-        borrower_key = borrower if isinstance(borrower, str) and borrower else ""
-        last_lender = borrower_to_last_lender.get(borrower_key, "")
-        record["has_churned"] = "Yes" if last_lender != lender else ""
-        record["last_lender"] = last_lender
-        record["all_lenders"] = " | ".join(
-            borrower_to_all_lenders.get(borrower_key, [])
-        )
-        record["total_volume"] = borrower_to_total_volume.get(borrower_key, 0)
-
-    df = pd.DataFrame(selected_data)
-
-    columns_to_keep = [
+    column_order = [
         "buyerName",
+        "borrower_num_loans_w_lender",
         "borrower_num_loans",
         "total_volume",
         "has_churned",
         "last_lender",
         "all_lenders",
     ]
-    df = df[columns_to_keep]
-    df = df.drop_duplicates()
+    df = pd.DataFrame(records)[column_order].drop_duplicates().reset_index(drop=True)
 
     st.dataframe(
         df,
         use_container_width=True,
         column_config={
+            "all_lenders": st.column_config.TextColumn("Lenders Used"),
+            "borrower_num_loans_w_lender": st.column_config.NumberColumn(
+                "Lender # Loans"
+            ),
+            "borrower_num_loans": st.column_config.NumberColumn("Total # Loans"),
             "buyerName": st.column_config.TextColumn("Borrower Name"),
-            "borrower_num_loans": st.column_config.NumberColumn("Number of Loans"),
+            "has_churned": st.column_config.TextColumn("Has Churned"),
+            "last_lender": st.column_config.TextColumn("Last Lender"),
             "total_volume": st.column_config.NumberColumn(
                 "Total Loan Volume", format="dollar"
             ),
-            "has_churned": st.column_config.TextColumn("Has Churned"),
-            "last_lender": st.column_config.TextColumn("Last Lender"),
-            "all_lenders": st.column_config.TextColumn("Lenders Used"),
         },
     )
 
@@ -163,28 +169,26 @@ def _show_metrics_selected_data(prepped_data: List[Dict], lender: str) -> None:
     ]
     if not selected_data:
         return
-    else:
-        lender_to_all_borrowers: Dict[str, Set[str]] = get_lender_to_all_borrowers(
-            prepped_data
-        )
-        lender_to_churned_borrowers: Dict[str, Set[str]] = get_lender_to_lost_borrowers(
-            prepped_data
-        )
-        all_borrowers = set(lender_to_all_borrowers.get(lender, []))
-        churned_borrowers = set(lender_to_churned_borrowers.get(lender, []))
-        num_all_borrowers = len(all_borrowers)
-        num_churned_borrowers = len(churned_borrowers)
-        churn_rate = (
-            round((num_churned_borrowers / num_all_borrowers) * 100, 1)
-            if num_all_borrowers > 0
-            else 0
-        )
+
+    lender_to_all_borrowers: Dict[str, Set[str]] = get_lender_to_borrowers(prepped_data)
+    lender_to_churned_borrowers: Dict[str, Set[str]] = get_lender_to_lost_borrowers(
+        prepped_data
+    )
+    all_borrowers = set(lender_to_all_borrowers.get(lender, []))
+    churned_borrowers = set(lender_to_churned_borrowers.get(lender, []))
+    num_all_borrowers = len(all_borrowers)
+    num_churned_borrowers = len(churned_borrowers)
+    churn_rate = (
+        (num_churned_borrowers / num_all_borrowers) * 100
+        if num_all_borrowers > 0
+        else 0
+    )
 
     col1, col2 = st.columns(2)
     col1.metric(
         "Churned Borrowers", f"{num_churned_borrowers}/{num_all_borrowers}", border=True
     )
-    col2.metric("Churn Rate", f"{churn_rate}%", border=True)
+    col2.metric("Churn Rate", f"{round(churn_rate, 1)}%", border=True)
 
 
 def _show_scatterplot(prepped_data: List[Dict]) -> None:
@@ -197,38 +201,15 @@ def _show_scatterplot(prepped_data: List[Dict]) -> None:
     )
 
     # Prepare data for scatter plot: x = lender_num_loans, y = number of churned borrowers
-    chart_data = _get_lender_churn_scatter_data(
+    chart_data: pd.DataFrame = _get_scatterplot_data(
         prepped_data, lender_to_churned_borrowers
     )
-    if not chart_data.empty:
-        scatter = (
-            alt.Chart(chart_data)
-            .mark_circle(size=100, color=RED_HEX)
-            .encode(
-                x=alt.X("lender_num_loans", title="Number of Loans"),
-                y=alt.Y("num_churned_borrowers", title="Number of Churned Borrowers"),
-                tooltip=["lender", "lender_num_loans", "num_churned_borrowers"],
-            )
-            .properties(width="container")
-        )
-        if len(chart_data) > HIDE_SCATTERPLOT_LINE_THRESHOLD:
-            line = (
-                alt.Chart(chart_data)
-                .transform_regression("lender_num_loans", "num_churned_borrowers")
-                .mark_line(color=GRAY_HEX)
-                .encode(x="lender_num_loans", y="num_churned_borrowers")
-            )
-            chart = alt.layer(line, scatter)
-        else:
-            chart = scatter
+    if chart_data.empty:
+        st.warning("Not enough data to display chart.", icon=":material/warning:")
+        return
 
-        chart = chart.properties(
-            title={
-                "text": "Comparison of Borrower Churn Among Lenders",
-                "anchor": "middle",
-            }
-        )
-        st.altair_chart(chart, use_container_width=True)
+    scatterplot: alt.LayerChart = _create_scatterplot(chart_data)
+    st.altair_chart(scatterplot, use_container_width=True)
 
     st.info(
         f"""

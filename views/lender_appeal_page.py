@@ -1,21 +1,16 @@
 from typing import Dict, List, Set, Tuple
 
-import altair as alt
 import pandas as pd
 import streamlit as st
 from matplotlib.figure import Figure
 from pycirclize import Circos
 from pycirclize.parser import Matrix
 
-from constants.css import GRAY_HEX, GREEN_HEX, YELLOW_HEX
+from constants.css import GRAY_HEX, GREEN_HEX
 from pipelines.prepare_loan_data import prep_data
 from utils.gui import show_default_footer, show_st_h1, show_st_h2
 from utils.io import load_json
-from utils.party_churn import (
-    get_fromto_lenders_w_counts,
-    get_lender_to_gained_borrowers,
-    get_lender_to_lost_borrowers,
-)
+from utils.party_churn import get_fromto_lenders_w_counts
 
 MIN_BORROWER_CHURN_THRESHOLD = 1
 
@@ -78,9 +73,9 @@ def _show_chord_diagram(prepped_data: List[Dict]) -> None:
     fromto_lenders_w_counts_df: pd.DataFrame = _get_chord_diagram_data(prepped_data)
     st.dataframe(fromto_lenders_w_counts_df)  # alice
 
-    # chord_diagram: Figure = _create_chord_diagram(fromto_lenders_w_counts_df)
+    chord_diagram: Figure = _create_chord_diagram(fromto_lenders_w_counts_df)
 
-    # st.pyplot(chord_diagram, use_container_width=True)
+    st.pyplot(chord_diagram, use_container_width=True)
 
     st.info(
         f"""
@@ -100,22 +95,11 @@ def render_page() -> None:
     # st.write("")
     # _show_introduction()
 
-    # st.write("")
-    # st.write("")
-    # st.markdown("#### (New Page: Lender Attractiveness) Where did churned borrowers go for new loans?")
+    st.write("")
+    st.write("")
+    st.markdown("#### Where did churned borrowers go for new loans?")
 
-    # _show_chord_diagram(prepped_data)
-
-    # st.write("")
-    # st.write("")
-    # selected_lender: str = _show_selectbox(prepped_data)
-
-    # st.write("")
-    # st.write("")
-    # _show_metrics_selected_data(prepped_data, selected_lender)
-
-    # st.write("")
-    # _show_df(prepped_data, selected_lender)
+    _show_chord_diagram(prepped_data)
 
     show_default_footer()
 

@@ -232,7 +232,8 @@ def render_page() -> None:
         f"""
         ##### :material/cognition: How to Interpret the Chart
         A large net loss of borrowers may signal misaligned offerings, evolving 
-        capital market conditions, or a strategic market exit by the lender.
+        capital market conditions, poor customer experience, or a strategic market 
+        exit by the lender.
         """
     )
 

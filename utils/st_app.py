@@ -15,6 +15,7 @@ from constants.file import (
     LENDER_BORROWER_MIGRATION_PAGE_FILE,
     LENDER_CLIENT_CHURN_PAGE_FILE,
     LENDER_LOANS_PAGE_FILE,
+    LENDER_PORTFOLIO_TIMELINE_PAGE_FILE,
     LENDER_REPEAT_BORROWERS_PAGE_FILE,
     LOAN_ANALYSIS_PAGE_FILE,
     PAGE_DIR,
@@ -105,6 +106,11 @@ def setup_page_navigation() -> StreamlitPage:
         title="Lender Appeal",
         icon=":material/favorite:",
     )
+    lender_portfolio_timeline_page = st.Page(
+        os.path.join(PAGE_DIR, LENDER_PORTFOLIO_TIMELINE_PAGE_FILE),
+        title="Portfolio Timeline",
+        icon=":material/calendar_month:",
+    )
 
     pages = {
         "Loan Analysis": [loan_analysis_page],
@@ -114,9 +120,11 @@ def setup_page_navigation() -> StreamlitPage:
         ],
         "Lender Analysis": [
             lender_loans_page,
+            lender_portfolio_timeline_page,
             lender_repeat_borrowers_page,
             lender_client_churn_page,
             lender_borrower_migration_page,
+            lender_appeal_page,
         ],
         "Borrower-Lender Relationship": [
             borrower_lenders_page,
