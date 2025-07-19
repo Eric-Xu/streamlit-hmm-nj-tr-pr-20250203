@@ -11,8 +11,9 @@ from constants.file import (
     BORROWER_TIMELINE_PAGE_FILE,
     CSS_DIR,
     CSS_FILE,
-    LENDER_BORROWER_CHURN_PAGE_FILE,
+    LENDER_APPEAL_PAGE_FILE,
     LENDER_BORROWER_MIGRATION_PAGE_FILE,
+    LENDER_CLIENT_CHURN_PAGE_FILE,
     LENDER_LOANS_PAGE_FILE,
     LENDER_REPEAT_BORROWERS_PAGE_FILE,
     LOAN_ANALYSIS_PAGE_FILE,
@@ -89,15 +90,20 @@ def setup_page_navigation() -> StreamlitPage:
         title="Repeat Borrowers",
         icon=":material/group:",
     )
-    lender_borrower_churn_page = st.Page(
-        os.path.join(PAGE_DIR, LENDER_BORROWER_CHURN_PAGE_FILE),
-        title="Borrower Churn Rate",
+    lender_client_churn_page = st.Page(
+        os.path.join(PAGE_DIR, LENDER_CLIENT_CHURN_PAGE_FILE),
+        title="Client Churn",
         icon=":material/person_cancel:",
     )
     lender_borrower_migration_page = st.Page(
         os.path.join(PAGE_DIR, LENDER_BORROWER_MIGRATION_PAGE_FILE),
         title="Borrower Migration",
         icon=":material/directions_walk:",
+    )
+    lender_appeal_page = st.Page(
+        os.path.join(PAGE_DIR, LENDER_APPEAL_PAGE_FILE),
+        title="Lender Appeal",
+        icon=":material/favorite:",
     )
 
     pages = {
@@ -109,7 +115,7 @@ def setup_page_navigation() -> StreamlitPage:
         "Lender Analysis": [
             lender_loans_page,
             lender_repeat_borrowers_page,
-            lender_borrower_churn_page,
+            lender_client_churn_page,
             lender_borrower_migration_page,
         ],
         "Borrower-Lender Relationship": [

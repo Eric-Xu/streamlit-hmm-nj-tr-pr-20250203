@@ -1,5 +1,5 @@
 from collections import Counter
-from typing import Dict, List, Tuple
+from typing import Dict, List, Set, Tuple
 
 
 def get_borrower_to_last_lender(prepped_data: List[Dict]) -> Dict[str, str]:
@@ -25,44 +25,79 @@ def get_borrower_to_last_lender(prepped_data: List[Dict]) -> Dict[str, str]:
     }
 
 
-def get_lender_to_all_borrowers(prepped_data: List[Dict]) -> Dict[str, List[str]]:
+def get_lender_to_all_borrowers(prepped_data: List[Dict]) -> Dict[str, Set[str]]:
     """
     For each lender (lenderName), collect a list of all borrowers (buyerName) they've lent to.
     Returns a dict mapping lender name to a list of borrower names.
     """
-    lender_to_borrowers: Dict[str, List[str]] = {}
+    lender_to_borrowers: Dict[str, Set[str]] = {}
     for record in prepped_data:
         lender = record.get("lenderName")
         borrower = record.get("buyerName")
         if not lender or not borrower:
             continue
         if lender not in lender_to_borrowers:
-            lender_to_borrowers[lender] = []
-        lender_to_borrowers[lender].append(borrower)
+            lender_to_borrowers[lender] = set()
+        lender_to_borrowers[lender].add(borrower)
+
     return lender_to_borrowers
 
 
-def get_lender_to_churned_borrowers(prepped_data: List[Dict]) -> Dict[str, List[str]]:
+def get_lender_to_lost_borrowers(prepped_data: List[Dict]) -> Dict[str, Set[str]]:
     """
     For each lender, find borrowers who have churned (last loan was to a different lender).
     Returns a dict mapping lender name to a list of unique churned borrower names.
     """
-    lender_to_churned: Dict[str, List[str]] = {}
+    lender_to_lost_borrowers: Dict[str, Set[str]] = {}
 
     borrower_to_last_lender: Dict[str, str] = get_borrower_to_last_lender(prepped_data)
-    lender_to_all_borrowers: Dict[str, List[str]] = get_lender_to_all_borrowers(
+    lender_to_all_borrowers: Dict[str, Set[str]] = get_lender_to_all_borrowers(
         prepped_data
     )
 
     for lender, borrowers in lender_to_all_borrowers.items():
-        churned_borrowers = set()
+        lost_borrowers = set()
         for borrower in borrowers:
             if borrower_to_last_lender.get(borrower) != lender:
-                churned_borrowers.add(borrower)
-        if churned_borrowers:
-            lender_to_churned[lender] = list(churned_borrowers)
+                lost_borrowers.add(borrower)
+        if lost_borrowers:
+            lender_to_lost_borrowers[lender] = lost_borrowers
 
-    return lender_to_churned
+    return lender_to_lost_borrowers
+
+
+def get_lender_to_gained_borrowers(prepped_data: List[Dict]) -> Dict[str, Set[str]]:
+    """
+    For each lender, find borrowers they have gained (borrowers whose last loan
+    was with this lender, but who previously borrowed from a different lender).
+    Returns a dict mapping lender name to a set of unique gained borrower names.
+    """
+    lender_to_gained_borrowers: Dict[str, Set[str]] = {}
+
+    borrower_to_last_lender: Dict[str, str] = get_borrower_to_last_lender(prepped_data)
+    lender_to_all_borrowers: Dict[str, Set[str]] = get_lender_to_all_borrowers(
+        prepped_data
+    )
+
+    for borrower, last_lender in borrower_to_last_lender.items():
+        # Only consider borrowers who have a last lender
+        if not last_lender:
+            continue
+        # If the borrower has ever borrowed from a different lender
+        for lender, borrowers in lender_to_all_borrowers.items():
+            if lender == last_lender:
+                if borrower in borrowers:
+                    # Check if borrower has ever borrowed from another lender
+                    borrowed_from_others = any(
+                        borrower in bset and l != last_lender
+                        for l, bset in lender_to_all_borrowers.items()
+                    )
+                    if borrowed_from_others:
+                        if last_lender not in lender_to_gained_borrowers:
+                            lender_to_gained_borrowers[last_lender] = set()
+                        lender_to_gained_borrowers[last_lender].add(borrower)
+
+    return lender_to_gained_borrowers
 
 
 def get_borrower_fromto_lenders(prepped_data: List[Dict]) -> List[Tuple[str, str, str]]:
@@ -81,7 +116,7 @@ def get_borrower_fromto_lenders(prepped_data: List[Dict]) -> List[Tuple[str, str
     borrower_fromto_lenders: List[Tuple[str, str, str]] = []
 
     borrower_to_last_lender: Dict[str, str] = get_borrower_to_last_lender(prepped_data)
-    lender_to_churned_borrowers: Dict[str, List[str]] = get_lender_to_churned_borrowers(
+    lender_to_churned_borrowers: Dict[str, Set[str]] = get_lender_to_lost_borrowers(
         prepped_data
     )
 

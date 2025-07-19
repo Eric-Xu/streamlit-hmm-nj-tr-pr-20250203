@@ -1,4 +1,4 @@
-from typing import Dict, List
+from typing import Dict, List, Set
 
 import altair as alt
 import pandas as pd
@@ -11,14 +11,14 @@ from utils.io import load_json
 from utils.party_churn import (
     get_borrower_to_last_lender,
     get_lender_to_all_borrowers,
-    get_lender_to_churned_borrowers,
+    get_lender_to_lost_borrowers,
 )
 
 HIDE_SCATTERPLOT_LINE_THRESHOLD = 10
 
 
 def _get_lender_churn_scatter_data(
-    prepped_data: List[Dict], lender_to_churned_borrowers: Dict[str, List[str]]
+    prepped_data: List[Dict], lender_to_churned_borrowers: Dict[str, Set[str]]
 ) -> pd.DataFrame:
     """
     Returns a DataFrame with columns: lender, lender_num_loans, num_churned_borrowers
@@ -164,11 +164,11 @@ def _show_metrics_selected_data(prepped_data: List[Dict], lender: str) -> None:
     if not selected_data:
         return
     else:
-        lender_to_all_borrowers: Dict[str, List[str]] = get_lender_to_all_borrowers(
+        lender_to_all_borrowers: Dict[str, Set[str]] = get_lender_to_all_borrowers(
             prepped_data
         )
-        lender_to_churned_borrowers: Dict[str, List[str]] = (
-            get_lender_to_churned_borrowers(prepped_data)
+        lender_to_churned_borrowers: Dict[str, Set[str]] = get_lender_to_lost_borrowers(
+            prepped_data
         )
         all_borrowers = set(lender_to_all_borrowers.get(lender, []))
         churned_borrowers = set(lender_to_churned_borrowers.get(lender, []))
@@ -192,7 +192,7 @@ def _show_scatterplot(prepped_data: List[Dict]) -> None:
     Recently churned borrowers (scatterplot of "num recently churned" to "lender num loans").
         - Given a lender, list any recently churned borrowers (last loan went to a different lender)
     """
-    lender_to_churned_borrowers: Dict[str, List[str]] = get_lender_to_churned_borrowers(
+    lender_to_churned_borrowers: Dict[str, Set[str]] = get_lender_to_lost_borrowers(
         prepped_data
     )
 
@@ -256,7 +256,7 @@ def _show_selectbox(prepped_data: List[Dict]) -> str:
 
 def render_page() -> None:
     show_st_h1("Lender Analysis")
-    show_st_h2("Borrower Churn Rate", w_divider=True)
+    show_st_h2("Client Churn", w_divider=True)
 
     prepped_data_file_path: str = prep_data()
     prepped_data: List[Dict] = load_json(prepped_data_file_path)

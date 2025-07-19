@@ -1,70 +1,23 @@
-from typing import Dict, List, Set, Tuple
+from typing import Dict, List, Set
 
 import altair as alt
-import numpy as np
 import pandas as pd
 import streamlit as st
-from matplotlib.figure import Figure
-from pycirclize import Circos
-from pycirclize.parser import Matrix
 
-from constants.css import BLUE_HEX, GRAY_HEX, GREEN_HEX, RED_HEX
+from constants.css import GREEN_HEX, YELLOW_HEX
 from pipelines.prepare_loan_data import prep_data
-from utils.gui import show_st_h1, show_st_h2
+from utils.gui import show_default_footer, show_st_h1, show_st_h2
 from utils.io import load_json
-from utils.party_churn import get_borrower_fromto_lenders, get_fromto_lenders_w_counts
-
-MIN_BORROWER_CHURN_THRESHOLD = 1
-
-
-def _create_chord_diagram(prepped_data: List[Dict]) -> Figure:
-    # Count occurrences of each (from_lender, to_lender) pair
-    fromto_lenders_w_counts: List[Tuple[str, str, int]] = get_fromto_lenders_w_counts(
-        prepped_data
-    )
-
-    # Remove records to reduce chart clutter
-    fromto_lender_w_min_counts: List[Tuple[str, str, int]] = [
-        row
-        for row in fromto_lenders_w_counts
-        if int(row[2]) > MIN_BORROWER_CHURN_THRESHOLD
-    ]
-
-    fromto_table_df = pd.DataFrame(
-        fromto_lender_w_min_counts,
-        columns=["from", "to", "value"],
-    )
-    matrix = Matrix.parse_fromto_table(fromto_table_df)
-
-    # Build cmap dict mapping each unique lender to GREEN_HEX
-    segment_labels = set(str(row[0]) for row in fromto_lender_w_min_counts) | set(
-        str(row[1]) for row in fromto_lender_w_min_counts
-    )
-    cmap = {label: GREEN_HEX for label in segment_labels}
-
-    circos = Circos.chord_diagram(
-        matrix,
-        space=4,
-        cmap=cmap,
-        ticks_interval=2,
-        label_kws=dict(alpha=0.0),  # Hide default sector.text()
-        link_kws=dict(direction=1),
-        ticks_kws=dict(outer=True, text_kws=dict(color=GRAY_HEX)),
-    )
-
-    # Create annotation labels to avoid overlapping texts.
-    for sector in circos.sectors:
-        for track in sector.tracks:
-            label_pos = sector.center
-            track.annotate(x=label_pos, label=sector.name, label_size=10, shorten=100)
-
-    fig: Figure = circos.plotfig()
-
-    return fig
+from utils.party_churn import (
+    get_lender_to_gained_borrowers,
+    get_lender_to_lost_borrowers,
+)
 
 
-def _create_horizontal_bar_chart(chart_data: pd.DataFrame) -> alt.Chart:
-    color_scale = alt.Scale(domain=["lost", "gained"], range=[RED_HEX, BLUE_HEX])
+def _create_horizontal_bar_chart(
+    chart_data: pd.DataFrame,
+) -> alt.Chart:
+    color_scale = alt.Scale(domain=["lost", "gained"], range=[YELLOW_HEX, GREEN_HEX])
     chart = (
         alt.Chart(chart_data)
         .mark_bar()
@@ -78,33 +31,19 @@ def _create_horizontal_bar_chart(chart_data: pd.DataFrame) -> alt.Chart:
                 alt.Tooltip("borrower_status:N", title="borrower_status"),
             ],
         )
-        .properties(
-            title=alt.TitleParams(text="Lenders with the Highest Borrower Migration")
-        )
     )
 
     return chart
 
 
-def _get_horizontal_bar_chart_data(
-    prepped_data: List[Dict], top_n=None
-) -> pd.DataFrame:
-    borrower_fromto_lenders: List[Tuple[str, str, str]] = get_borrower_fromto_lenders(
+def _get_borrower_migration_all_lenders(prepped_data: List[Dict]) -> List[Dict]:
+
+    lender_to_lost_borrowers: Dict[str, Set] = get_lender_to_lost_borrowers(
         prepped_data
     )
-
-    # Calculate lost and gained borrower counts per lender (unique borrowers only)
-    lender_to_lost_count: Dict[str, int] = {}
-    lender_to_gained_count: Dict[str, int] = {}
-    lender_to_lost_borrowers: Dict[str, Set] = {}
-    lender_to_gained_borrowers: Dict[str, Set] = {}
-    for churned_borrower, from_lender, to_lender in borrower_fromto_lenders:
-        if from_lender not in lender_to_lost_borrowers:
-            lender_to_lost_borrowers[from_lender] = set()
-        if to_lender not in lender_to_gained_borrowers:
-            lender_to_gained_borrowers[to_lender] = set()
-        lender_to_lost_borrowers[from_lender].add(churned_borrower)
-        lender_to_gained_borrowers[to_lender].add(churned_borrower)
+    lender_to_gained_borrowers: Dict[str, Set] = get_lender_to_gained_borrowers(
+        prepped_data
+    )
     lender_to_lost_count = {
         lender: len(borrowers) for lender, borrowers in lender_to_lost_borrowers.items()
     }
@@ -113,76 +52,107 @@ def _get_horizontal_bar_chart_data(
         for lender, borrowers in lender_to_gained_borrowers.items()
     }
 
-    data: List[Dict] = []
+    borrower_migration_all_lenders: List[Dict] = []
     for lender, num in lender_to_lost_count.items():
-        data.append(
+        borrower_migration_all_lenders.append(
             {"num_borrowers": -abs(num), "lender": lender, "borrower_status": "lost"}
         )
     for lender, num in lender_to_gained_count.items():
-        data.append(
+        borrower_migration_all_lenders.append(
             {"num_borrowers": abs(num), "lender": lender, "borrower_status": "gained"}
         )
-    data_all: pd.DataFrame = pd.DataFrame(data)
-    st.write(data_all)
 
-    # Sort so that the lender with the highest gained num_borrowers comes first
-    data_all["tmp_gained"] = data_all.apply(
-        lambda row: row["num_borrowers"] if row["borrower_status"] == "gained" else 0,
-        axis=1,
+    return borrower_migration_all_lenders
+
+
+def _get_borrower_migration_top_n(
+    borrower_migration_all_lenders: List[Dict], top_n: int, borrower_status: str
+) -> pd.DataFrame:
+    migration_data_all_lenders: pd.DataFrame = pd.DataFrame(
+        borrower_migration_all_lenders
     )
-    data_all = data_all.sort_values(by="tmp_gained", ascending=False)
-    data_all = data_all.drop(columns=["tmp_gained"])
 
-    if top_n:
-        data_top_n_mostly_gained_records = data_all.head(top_n)
-        top_lenders = set(data_top_n_mostly_gained_records["lender"])
-        data_top_n_lost_records = data_all[
-            (data_all["lender"].isin(top_lenders))
-            & (data_all["borrower_status"] == "lost")
-        ]
-        data = pd.concat(
-            [data_top_n_mostly_gained_records, data_top_n_lost_records],
-            ignore_index=True,
+    # Sort the df by num_borrowers based on the borrower_status ("gained" or "lost")
+    if borrower_status == "gained":
+        migration_data_all_lenders["tmp_sort_col"] = migration_data_all_lenders.apply(
+            lambda row: (
+                row["num_borrowers"] if row["borrower_status"] == "gained" else 0
+            ),
+            axis=1,
         )
+        migration_data_all_lenders = migration_data_all_lenders.sort_values(
+            by="tmp_sort_col", ascending=False
+        ).drop(columns=["tmp_sort_col"])
     else:
-        data = data_all
+        migration_data_all_lenders["tmp_sort_col"] = migration_data_all_lenders.apply(
+            lambda row: row["num_borrowers"] if row["borrower_status"] == "lost" else 0,
+            axis=1,
+        )
+        migration_data_all_lenders = migration_data_all_lenders.sort_values(
+            by="tmp_sort_col", ascending=True
+        ).drop(columns=["tmp_sort_col"])
 
-    return data
+    # Get top_n lenders for the given borrower status.
+    top_n_matching_status_records = migration_data_all_lenders.head(top_n)
+    top_n_lenders = set(top_n_matching_status_records["lender"])
 
+    # Get records of the opposing status for the top_n lenders.
+    opposite_status = "lost" if borrower_status == "gained" else "gained"
+    top_n_opposite_status_records = migration_data_all_lenders[
+        (migration_data_all_lenders["lender"].isin(top_n_lenders))
+        & (migration_data_all_lenders["borrower_status"] == opposite_status)
+    ]
 
-def _show_chord_diagram(prepped_data: List[Dict]) -> None:
-    chord_diagram: Figure = _create_chord_diagram(prepped_data)
-    st.pyplot(chord_diagram, use_container_width=True)
-
-    st.info(
-        f"""
-        ##### :material/cognition: How to Interpret the Chart
-        TODO
-        """
+    # Return the number of gained and lost borrowers for the top_n lenders.
+    top_n_both_status_records = pd.concat(
+        [top_n_matching_status_records, top_n_opposite_status_records],
+        ignore_index=True,
     )
 
+    return top_n_both_status_records
 
-def _show_horizontal_bar_chart(prepped_data: List[Dict]) -> None:
-    top_n = 20
-    chart_data_top_n: pd.DataFrame = _get_horizontal_bar_chart_data(prepped_data, top_n)
 
-    horizontal_bar_chart: alt.Chart = _create_horizontal_bar_chart(chart_data_top_n)
+def _show_horizontal_bar_chart(chart_data: pd.DataFrame) -> None:
+    horizontal_bar_chart: alt.Chart = _create_horizontal_bar_chart(chart_data)
     st.altair_chart(horizontal_bar_chart, use_container_width=True)
 
-    st.info(
-        f"""
-        ##### :material/cognition: How to Interpret the Chart
-        This chart aims to illustrate each lender's net borrower migration. A 
-        lender with significantly higher gains than losses demonstrates strong 
-        performance in both attracting business from competitors' clients and
-        minimizing their own borrower churn.
-        """
+
+def _show_horizontal_bar_chart_data(
+    prepped_data: List[Dict], lenders: Set[str]
+) -> None:
+    lender_to_lost_borrowers: Dict[str, Set] = get_lender_to_lost_borrowers(
+        prepped_data
+    )
+    lender_to_gained_borrowers: Dict[str, Set] = get_lender_to_gained_borrowers(
+        prepped_data
     )
 
-    on = st.toggle("Show Chart Data")
+    lender_borrower_status: List[Dict] = []
+    for lender in lenders:
+        # Lost borrowers
+        for borrower in lender_to_lost_borrowers.get(lender, set()):
+            lender_borrower_status.append(
+                {
+                    "lender_name": lender,
+                    "borrower_name": borrower,
+                    "borrower_status": "lost",
+                }
+            )
+        # Gained borrowers
+        for borrower in lender_to_gained_borrowers.get(lender, set()):
+            lender_borrower_status.append(
+                {
+                    "lender_name": lender,
+                    "borrower_name": borrower,
+                    "borrower_status": "gained",
+                }
+            )
+    lender_borrower_status_df = pd.DataFrame(lender_borrower_status)
+    lender_borrower_status_df = lender_borrower_status_df.sort_values(
+        by=["lender_name", "borrower_status", "borrower_name"]
+    ).reset_index(drop=True)
 
-    if on:
-        st.dataframe(chart_data_top_n)
+    st.dataframe(lender_borrower_status_df)
 
 
 def _show_introduction() -> None:
@@ -205,25 +175,68 @@ def render_page() -> None:
     st.write("")
     _show_introduction()
 
-    st.write("")
-    st.write("")
-    _show_horizontal_bar_chart(prepped_data)
+    borrower_migration_all_lenders: List[Dict] = _get_borrower_migration_all_lenders(
+        prepped_data
+    )
 
     st.write("")
-    st.markdown("#### Where did churned borrowers go for new loans?")
+    st.markdown("#### Who signed up the most borrower clients from competitors?")
 
-    _show_chord_diagram(prepped_data)
+    top_n_gained: int = st.slider(
+        "Select the number of most-borrowers-gained records to display.", 10, 50, 25, 5
+    )
+    borrower_migration_top_n_gained: pd.DataFrame = _get_borrower_migration_top_n(
+        borrower_migration_all_lenders, top_n_gained, "gained"
+    )
 
-    # st.write("")
-    # st.write("")
-    # selected_lender: str = _show_selectbox(prepped_data)
+    st.write("")
+    st.write("")
+    _show_horizontal_bar_chart(borrower_migration_top_n_gained)
 
-    # st.write("")
-    # st.write("")
-    # _show_metrics_selected_data(prepped_data, selected_lender)
+    show_gained_data = st.toggle("Show Most-Borrowers-Gained Chart Data")
+    if show_gained_data:
+        top_n_gained_lenders = set(borrower_migration_top_n_gained["lender"].unique())
+        _show_horizontal_bar_chart_data(prepped_data, top_n_gained_lenders)
 
-    # st.write("")
-    # _show_df(prepped_data, selected_lender)
+    st.info(
+        f"""
+        ##### :material/cognition: How to Interpret the Chart
+        This chart illustrates borrower gains and losses among lenders with
+        the most active migration activity. A lender with significantly higher
+        gains than losses demonstrates strong performance in both attracting
+        business from competitors' clients and minimizing their own borrower
+        churn.
+        """
+    )
+
+    st.write("")
+    st.markdown("#### Who lost the most past borrowers to other lenders?")
+
+    top_n_lost: int = st.slider(
+        "Select the number of most-borrowers-lost records to display.", 10, 50, 25, 5
+    )
+    borrower_migration_top_n_lost: pd.DataFrame = _get_borrower_migration_top_n(
+        borrower_migration_all_lenders, top_n_lost, "lost"
+    )
+
+    st.write("")
+    st.write("")
+    _show_horizontal_bar_chart(borrower_migration_top_n_lost)
+
+    show_lost_data = st.toggle("Show Most-Borrowers-Lost Chart Data")
+    if show_lost_data:
+        top_n_lost_lenders = set(borrower_migration_top_n_lost["lender"].unique())
+        _show_horizontal_bar_chart_data(prepped_data, top_n_lost_lenders)
+
+    st.info(
+        f"""
+        ##### :material/cognition: How to Interpret the Chart
+        A large net loss of borrowers may signal misaligned offerings, evolving 
+        capital market conditions, or a strategic market exit by the lender.
+        """
+    )
+
+    show_default_footer()
 
 
 render_page()
