@@ -6,13 +6,10 @@ import streamlit as st
 
 from constants.css import GRAY_HEX, GREEN_HEX
 from pipelines.prepare_loan_data import prep_data
+from utils.borrower import get_borrower_to_lender_num_loans, get_borrower_to_volume
 from utils.gui import show_default_footer, show_st_h1, show_st_h2
 from utils.io import load_json
-from utils.metrics import (
-    get_borrower_to_lender_num_loans,
-    get_borrower_to_volume,
-    get_lender_to_repeat_borrowers,
-)
+from utils.lender import get_lender_to_repeat_borrowers
 
 HIDE_SCATTERPLOT_LINE_THRESHOLD = 10
 

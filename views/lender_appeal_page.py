@@ -10,7 +10,7 @@ from constants.css import GRAY_HEX, GREEN_HEX
 from pipelines.prepare_loan_data import prep_data
 from utils.gui import show_default_footer, show_st_h1, show_st_h2
 from utils.io import load_json
-from utils.party_churn import get_fromto_lenders_w_counts
+from utils.lender import get_fromto_lenders_w_counts
 
 MIN_BORROWER_CHURN_THRESHOLD = 1
 

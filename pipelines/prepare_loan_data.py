@@ -10,8 +10,12 @@ from constants.file import (
     TMP_DATA_JSON,
     TMP_DIR,
 )
+from utils.formatting import to_currency
 from utils.io import load_df
 from utils.outlier_detection import stddev_outlier_strategy
+
+LOAN_AMOUNT_MAX_THRESHOLD = 10_000_000
+OUTLIER_STD_DEV_THRESHOLD = 3.0
 
 
 def _load_data() -> DataFrame:
@@ -61,11 +65,26 @@ def _remove_outliers(
         borrower_activities_df[column], errors="coerce"
     )
     initial_count = len(borrower_activities_df)
+
+    # Remove None values
     borrower_activities_df.dropna(subset=[column], inplace=True)
     after_conversion_count = len(borrower_activities_df)
     if initial_count != after_conversion_count:
         print(
             f"Removed {initial_count - after_conversion_count} records with invalid {column} values"
+        )
+
+    # Remove any loans over $10 million
+    over_10m_count = (borrower_activities_df[column] > LOAN_AMOUNT_MAX_THRESHOLD).sum()
+    if over_10m_count > 0:
+        borrower_activities_df.drop(
+            borrower_activities_df[
+                borrower_activities_df[column] > LOAN_AMOUNT_MAX_THRESHOLD
+            ].index,
+            inplace=True,
+        )
+        print(
+            f"Removed {over_10m_count} records with {column} > {to_currency(LOAN_AMOUNT_MAX_THRESHOLD)}"
         )
 
     # Use the strategy to get outlier mask (strategy prints its own bounds/statistics)
@@ -94,7 +113,7 @@ def prep_data() -> str:
         borrower_activities_df,
         stddev_outlier_strategy,
         column="loanAmount",
-        threshold=2.0,
+        threshold=OUTLIER_STD_DEV_THRESHOLD,
     )
 
     prepped_data_df: DataFrame = _transform_data(borrower_activities_df)

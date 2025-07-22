@@ -6,12 +6,16 @@ import streamlit as st
 
 from constants.css import GRAY_HEX, RED_HEX
 from pipelines.prepare_loan_data import prep_data
+from utils.borrower import (
+    get_borrower_to_last_lender,
+    get_borrower_to_lender_num_loans,
+    get_borrower_to_lenders,
+    get_borrower_to_volume,
+)
 from utils.gui import show_default_footer, show_st_h1, show_st_h2
 from utils.io import load_json
-from utils.metrics import get_borrower_to_lender_num_loans, get_borrower_to_volume
-from utils.party_churn import (
+from utils.lender import (
     get_borrower_to_last_lender,
-    get_borrower_to_lenders,
     get_lender_to_borrowers,
     get_lender_to_lost_borrowers,
 )
@@ -237,7 +241,7 @@ def _show_selectbox(prepped_data: List[Dict]) -> str:
 
 def render_page() -> None:
     show_st_h1("Lender Analysis")
-    show_st_h2("Client Churn", w_divider=True)
+    show_st_h2("Churned Borrowers", w_divider=True)
 
     prepped_data_file_path: str = prep_data()
     prepped_data: List[Dict] = load_json(prepped_data_file_path)

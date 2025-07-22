@@ -1,25 +1,21 @@
 from collections import Counter, defaultdict
-from typing import Dict, List
+from typing import Dict, List, Set
 
 import pandas as pd
 import streamlit as st
 
-from constants.dataset import END_DATE, LOCATION, START_DATE
+from constants.dataset import END_DATE, START_DATE
 from pipelines.prepare_loan_data import prep_data
 from utils.formatting import to_currency
 from utils.gui import show_st_h1, show_st_h2
 from utils.io import load_json
+from utils.lender import (
+    get_lender_to_borrowers,
+    get_lender_to_loan_amounts,
+    get_lender_to_lost_borrowers,
+    get_lender_to_repeat_borrowers,
+)
 from utils.party_to_loan_timeline import show_timeline_network_graph
-
-
-def _count_repeat_borrowers(selected_data: List[Dict]) -> int:
-    """
-    Returns the number of borrowers who have taken out more than one loan (repeat borrowers).
-    """
-    borrower_names = [d.get("buyerName") for d in selected_data if d.get("buyerName")]
-    counts = Counter(borrower_names)
-    repeat_borrowers = [name for name, count in counts.items() if count > 1]
-    return len(repeat_borrowers)
 
 
 def _get_selected_data(prepped_data: List[Dict], lender: str) -> List[Dict]:
@@ -158,32 +154,36 @@ def _show_selectbox(prepped_data: List[Dict]) -> str:
     return option
 
 
-def _show_metrics_selected_data(selected_data: List[Dict]) -> None:
-    num_borrowers: int = len(set(d.get("buyerName", "") for d in selected_data))
+def _show_metrics_selected_data(prepped_data: List[Dict], lender: str) -> None:
+    lender_to_borrowers: Dict[str, Set[str]] = get_lender_to_borrowers(prepped_data)
+    num_borrowers: int = len(lender_to_borrowers.get(lender, set()))
     if num_borrowers == 0:
         return
 
-    repeat_borrower_count: int = _count_repeat_borrowers(selected_data)
-    repeat_borrower_pct: float = (
-        (repeat_borrower_count / num_borrowers) * 100 if num_borrowers > 0 else 0.0
+    lender_to_churned_borrowers: Dict[str, Set[str]] = get_lender_to_lost_borrowers(
+        prepped_data
+    )
+    churned_borrower_count: int = len(lender_to_churned_borrowers.get(lender, set()))
+    lender_to_repeat_borrowers: Dict[str, Set[str]] = get_lender_to_repeat_borrowers(
+        prepped_data
+    )
+    repeat_borrower_count: int = len(lender_to_repeat_borrowers.get(lender, set()))
+    lender_to_loan_amounts: Dict[str, List[int]] = get_lender_to_loan_amounts(
+        prepped_data
     )
 
-    loan_amounts = [
-        float(d.get("loanAmount", 0))
-        for d in selected_data
-        if d.get("loanAmount") not in (None, "", "N/A")
-    ]
+    loan_amounts: List[int] = lender_to_loan_amounts.get(lender, [])
     avg_loan_amount = sum(loan_amounts) / len(loan_amounts) if loan_amounts else 0
 
     col1, col2, col3 = st.columns(3)
     col1.metric(
-        "Repeat Borrower Count",
+        "Repeat Borrowers",
         f"{repeat_borrower_count}/{num_borrowers}",
         border=True,
     )
     col2.metric(
-        "Repeat Borrower Pct",
-        f"{round(repeat_borrower_pct, 1)}%",
+        "Churned Borrowers",
+        f"{churned_borrower_count}/{num_borrowers}",
         border=True,
     )
     col3.metric(
@@ -195,7 +195,7 @@ def _show_metrics_selected_data(selected_data: List[Dict]) -> None:
 
 def render_page():
     show_st_h1("Lender Analysis")
-    show_st_h2("Portfolio Timeline", w_divider=True)
+    show_st_h2("Origination Timeline", w_divider=True)
 
     prepped_data_file_path: str = prep_data()
     prepped_data: List[Dict] = load_json(prepped_data_file_path)
@@ -207,11 +207,11 @@ def render_page():
     st.write("")
     selected_lender: str = _show_selectbox(prepped_data)
 
-    selected_data: List[Dict] = _get_selected_data(prepped_data, selected_lender)
+    st.write("")
+    st.write("")
+    _show_metrics_selected_data(prepped_data, selected_lender)
 
-    st.write("")
-    st.write("")
-    _show_metrics_selected_data(selected_data)
+    selected_data: List[Dict] = _get_selected_data(prepped_data, selected_lender)
 
     _show_network_graph(selected_data)
 

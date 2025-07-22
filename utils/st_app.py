@@ -13,9 +13,9 @@ from constants.file import (
     CSS_FILE,
     LENDER_APPEAL_PAGE_FILE,
     LENDER_BORROWER_MIGRATION_PAGE_FILE,
-    LENDER_CLIENT_CHURN_PAGE_FILE,
-    LENDER_LOANS_PAGE_FILE,
-    LENDER_PORTFOLIO_TIMELINE_PAGE_FILE,
+    LENDER_CHURNED_BORROWERS_PAGE_FILE,
+    LENDER_MARKET_SHARE_PAGE_FILE,
+    LENDER_ORIGINATION_TIMELINE_PAGE_FILE,
     LENDER_REPEAT_BORROWERS_PAGE_FILE,
     LOAN_ANALYSIS_PAGE_FILE,
     PAGE_DIR,
@@ -81,9 +81,9 @@ def setup_page_navigation() -> StreamlitPage:
         title="Borrowers & Lenders",
         icon=":material/scatter_plot:",
     )
-    lender_loans_page = st.Page(
-        os.path.join(PAGE_DIR, LENDER_LOANS_PAGE_FILE),
-        title="Marketshare",
+    lender_market_share_page = st.Page(
+        os.path.join(PAGE_DIR, LENDER_MARKET_SHARE_PAGE_FILE),
+        title="Market Share",
         icon=":material/incomplete_circle:",
     )
     lender_repeat_borrowers_page = st.Page(
@@ -91,9 +91,9 @@ def setup_page_navigation() -> StreamlitPage:
         title="Repeat Borrowers",
         icon=":material/group:",
     )
-    lender_client_churn_page = st.Page(
-        os.path.join(PAGE_DIR, LENDER_CLIENT_CHURN_PAGE_FILE),
-        title="Client Churn",
+    lender_churned_borrowers_page = st.Page(
+        os.path.join(PAGE_DIR, LENDER_CHURNED_BORROWERS_PAGE_FILE),
+        title="Churned Borrowers",
         icon=":material/person_cancel:",
     )
     lender_borrower_migration_page = st.Page(
@@ -106,9 +106,9 @@ def setup_page_navigation() -> StreamlitPage:
         title="Lender Appeal",
         icon=":material/favorite:",
     )
-    lender_portfolio_timeline_page = st.Page(
-        os.path.join(PAGE_DIR, LENDER_PORTFOLIO_TIMELINE_PAGE_FILE),
-        title="Portfolio Timeline",
+    lender_origination_timeline_page = st.Page(
+        os.path.join(PAGE_DIR, LENDER_ORIGINATION_TIMELINE_PAGE_FILE),
+        title="Origination Timeline",
         icon=":material/calendar_month:",
     )
 
@@ -119,10 +119,10 @@ def setup_page_navigation() -> StreamlitPage:
             borrower_timeline_page,
         ],
         "Lender Analysis": [
-            lender_loans_page,
-            lender_portfolio_timeline_page,
+            lender_market_share_page,
+            lender_origination_timeline_page,
             lender_repeat_borrowers_page,
-            lender_client_churn_page,
+            lender_churned_borrowers_page,
             lender_borrower_migration_page,
             lender_appeal_page,
         ],

@@ -8,10 +8,7 @@ from constants.css import GREEN_HEX, YELLOW_HEX
 from pipelines.prepare_loan_data import prep_data
 from utils.gui import show_default_footer, show_st_h1, show_st_h2
 from utils.io import load_json
-from utils.party_churn import (
-    get_lender_to_gained_borrowers,
-    get_lender_to_lost_borrowers,
-)
+from utils.lender import get_lender_to_gained_borrowers, get_lender_to_lost_borrowers
 
 
 def _create_horizontal_bar_chart(
@@ -180,7 +177,9 @@ def render_page() -> None:
     )
 
     st.write("")
-    st.markdown("#### Who signed up the most borrower clients from competitors?")
+    st.markdown(
+        "#### Who signed the most clients that previously borrowed from other lenders?"
+    )
 
     top_n_gained: int = st.slider(
         "Select the number of most-borrowers-gained records to display.", 10, 50, 25, 5
@@ -210,7 +209,7 @@ def render_page() -> None:
     )
 
     st.write("")
-    st.markdown("#### Who lost the most past borrowers to other lenders?")
+    st.markdown("#### Who lost the most clients to other lenders?")
 
     top_n_lost: int = st.slider(
         "Select the number of most-borrowers-lost records to display.", 10, 50, 25, 5

@@ -11,12 +11,7 @@ from pipelines.prepare_loan_data import prep_data
 from utils.formatting import to_currency
 from utils.gui import show_default_footer, show_st_h1, show_st_h2
 from utils.io import load_json
-from utils.metrics import (
-    get_avg_loan_amount,
-    get_monthly_num_loans,
-    get_top_lenders_by_volume,
-    get_total_volume,
-)
+from utils.metrics import get_avg_loan_amount, get_loan_amounts, get_monthly_num_loans
 
 ABBR_MONTH_KEYS = [
     "a. Jan",
@@ -130,7 +125,7 @@ def _create_polar_bar_chart(prepped_data: List[Dict]) -> alt.LayerChart:
         polar_bars,
         tick_mark_labels,
         axis_lines_labels,
-    )
+    ).properties(height=300)
 
     return chart
 
@@ -159,21 +154,8 @@ def _get_selected_data(
     return selected_data
 
 
-def _get_top_lenders_marketshare_vol_pct(prepped_data: List[Dict], top_n: int) -> float:
-    total_volume: int = get_total_volume(prepped_data)
-    top_lenders_by_volume: List[Dict] = get_top_lenders_by_volume(prepped_data, top_n)
-    top_lenders_volume = sum(
-        int(item.get("loanAmount", 0)) for item in top_lenders_by_volume
-    )
-    if total_volume == 0:
-        return 0.0
-
-    return (top_lenders_volume / total_volume) * 100
-
-
 def _prep_borrower_loan_data(selected_data: List[Dict]) -> List[Dict]:
     if not selected_data:
-        st.info("No data available for the bar chart.")
         return []
 
     # Extract loan amounts and create labels
@@ -238,6 +220,10 @@ def _show_bar_chart(borrower_loan_data: List[Dict]) -> None:
 
 
 def _show_df(borrower_loan_data: List[Dict]) -> None:
+    if not borrower_loan_data:
+        st.info(":material/database_off: No data selected.")
+        return
+
     amounts: List[int] = [int(item["amount"]) for item in borrower_loan_data]
     borrowers: List[str] = [item["borrower"] for item in borrower_loan_data]
     df = pd.DataFrame({"Borrower Name": borrowers, "Loan Amount": amounts})
@@ -257,7 +243,19 @@ def _show_df(borrower_loan_data: List[Dict]) -> None:
 
 def _show_introduction(prepped_data: List[Dict]) -> None:
     total_loans: int = len(prepped_data)
-    avg_loan_amount: float = get_avg_loan_amount(prepped_data)
+    average_amount: float = get_avg_loan_amount(prepped_data)
+
+    st.markdown(
+        f"""
+        For the period between {START_DATE} to {END_DATE}...
+        
+        There were **{total_loans:,}** loans recorded in total, with an average
+        amount of **${average_amount:,.0f}** per loan. 
+        """
+    )
+
+
+def _show_loans_by_month(prepped_data: List[Dict]) -> None:
     monthly_num_loans: List[int] = get_monthly_num_loans(prepped_data)
     month_to_num_loans: Dict[str, int] = _get_month_to_num_loans(
         monthly_num_loans, month_key_type="full"
@@ -266,20 +264,10 @@ def _show_introduction(prepped_data: List[Dict]) -> None:
     max_num_loans: int = month_to_num_loans[max_num_loans_month]
     min_num_loans_month: str = min(month_to_num_loans.items(), key=lambda x: x[1])[0]
     min_num_loans: int = month_to_num_loans[min_num_loans_month]
-    top_lenders_vol_pct_marketshare: float = _get_top_lenders_marketshare_vol_pct(
-        prepped_data, 10
-    )
-    total_market_volume: int = get_total_volume(prepped_data)
 
     st.markdown(
         f"""
-        For the period between {START_DATE} to {END_DATE}...
-        
-        There were **{total_loans:,}** loans recorded in total, with an average
-        amount of **${avg_loan_amount:,.0f}** per loan. 
-        
-        The top 10 lenders by loan count accounted for **{round(top_lenders_vol_pct_marketshare, 1)}%**
-        of the total market volume (**{to_currency(total_market_volume)}**).
+        #### Number of Loans by Month
 
         **{max_num_loans_month}** had the highest origination activity with 
         **{max_num_loans:,}** loans recorded, while **{min_num_loans_month}** 
@@ -295,6 +283,62 @@ def _show_metrics_selected_data(borrower_loan_data: List[Dict]) -> None:
     col1.metric("Selected Loans", len(amounts))
     col2.metric("Average Amount", f"${sum(amounts)/len(amounts):,.0f}")
     col3.metric("Highest Amount", f"${max(amounts):,.0f}")
+
+
+def _show_donut_chart(prepped_data: List[Dict]) -> None:
+    bins_to_loan_amounts: Dict[str, List[int]] = {
+        "(a)_under_100k": [],
+        "(b)_100k_250k": [],
+        "(c)_250k_500k": [],
+        "(d)_500k_1m": [],
+        "(e)_1m_2m": [],
+        "(f)_over_2m": [],
+    }
+
+    for item in prepped_data:
+        loan_amount = int(item.get("loanAmount", 0))
+        if loan_amount < 100_000:
+            bins_to_loan_amounts["(a)_under_100k"].append(loan_amount)
+        elif 100_000 <= loan_amount < 250_000:
+            bins_to_loan_amounts["(b)_100k_250k"].append(loan_amount)
+        elif 250_000 <= loan_amount < 500_000:
+            bins_to_loan_amounts["(c)_250k_500k"].append(loan_amount)
+        elif 500_000 <= loan_amount < 1_000_000:
+            bins_to_loan_amounts["(d)_500k_1m"].append(loan_amount)
+        elif 1_000_000 <= loan_amount < 2_000_000:
+            bins_to_loan_amounts["(e)_1m_2m"].append(loan_amount)
+        else:
+            bins_to_loan_amounts["(f)_over_2m"].append(loan_amount)
+
+    source = pd.DataFrame(
+        {
+            "category": bins_to_loan_amounts.keys(),
+            "num_loans": [len(v) for v in bins_to_loan_amounts.values()],
+        }
+    )
+
+    donut_chart = (
+        alt.Chart(source)
+        .mark_arc(innerRadius=50)
+        .encode(
+            theta="num_loans",
+            color=alt.Color(
+                "category:N",
+                legend=alt.Legend(
+                    orient="bottom",
+                    title="Categories",
+                    titleAlign="center",
+                ),
+            ),
+            tooltip=[
+                alt.Tooltip("category", title="Loan Amount ($)"),
+                alt.Tooltip("num_loans", title="Number of Loans"),
+            ],
+        )
+        .properties(height=300)
+    )
+
+    st.altair_chart(donut_chart, use_container_width=True)
 
 
 def _show_polar_bar_all_data(prepped_data: List[Dict]) -> None:
@@ -334,24 +378,78 @@ def _get_polar_bar_tick_mark_config(max_num_loans: int) -> Dict[str, int]:
     return tick_mark_config
 
 
+def _show_metrics_all_data(prepped_data: List[Dict]) -> None:
+    loan_amounts: List[int] = get_loan_amounts(prepped_data)
+    min_amount: int = min(loan_amounts)
+    average_amount: float = get_avg_loan_amount(prepped_data)
+    max_amount: int = max(loan_amounts)
+
+    col1, col2, col3 = st.columns(3)
+    col1.metric("Min Amount", to_currency(min_amount), border=True)
+    col2.metric("Average Amount", to_currency(average_amount), border=True)
+    col3.metric("Max Amount", to_currency(max_amount), border=True)
+
+
 def _show_slider(prepped_data: List[Dict]) -> Tuple[int, int]:
     max_loan_amount: int = max(int(item.get("loanAmount", 0)) for item in prepped_data)
+    if max_loan_amount > 2_000_000:
+        step = 100_000
+    elif max_loan_amount > 1_000_000:
+        step = 50_000
+    else:
+        step = 10_000
+
+    col1, col2 = st.columns(2)
+    min_amount_input = col1.text_input("Min Loan Amount:")
+    max_amount_input = col2.text_input("Max Loan Amount:")
+    try:
+        min_amount_input = int(min_amount_input)
+        max_amount_input = int(max_amount_input)
+    except ValueError:
+        min_amount_input = None
+        max_amount_input = None
 
     slider_default_min = int(max_loan_amount * 0.1)
     slider_default_max = int(max_loan_amount * 0.9)
+
+    # Validate user input
+    valid_min = (
+        isinstance(min_amount_input, int) and 0 <= min_amount_input <= max_loan_amount
+    )
+    valid_max = (
+        isinstance(max_amount_input, int) and 0 <= max_amount_input <= max_loan_amount
+    )
+    if (min_amount_input is not None and not valid_min) or (
+        max_amount_input is not None and not valid_max
+    ):
+        st.warning(
+            f"Please enter valid numbers between 0 and {max_loan_amount:,} for both min and max loan amounts."
+        )
+        return slider_default_min, slider_default_max
+
+    slider_min = min_amount_input if valid_min else slider_default_min
+    slider_max = max_amount_input if valid_max else slider_default_max
+
+    # Ensure both are int and not None
+    if slider_min is None:
+        slider_min = slider_default_min
+    if slider_max is None:
+        slider_max = slider_default_max
+    slider_min = int(slider_min)
+    slider_max = int(slider_max)
 
     user_min_loan_amount, user_max_loan_amount = st.slider(
         "**Select loans by adjusting the minimum and maximum loan amount.**",
         min_value=0,
         max_value=max_loan_amount,
-        value=(slider_default_min, slider_default_max),
-        step=10000,
+        value=(slider_min, slider_max),
+        step=step,
     )
 
     return user_min_loan_amount, user_max_loan_amount
 
 
-def render_page():
+def render_page() -> None:
     show_st_h1("Loan Analysis")
     show_st_h2(f"Market Overview: {LOCATION}", w_divider=True)
 
@@ -362,7 +460,13 @@ def render_page():
     _show_introduction(prepped_data)
 
     st.write("")
-    st.markdown("#### Number of Loans by Month")
+    st.write("")
+    _show_donut_chart(prepped_data)
+
+    _show_metrics_all_data(prepped_data)
+
+    st.write("")
+    _show_loans_by_month(prepped_data)
 
     st.write("")
     _show_polar_bar_all_data(prepped_data)
@@ -379,13 +483,16 @@ def render_page():
 
     borrower_loan_data: List[Dict] = _prep_borrower_loan_data(selected_data)
 
+    if not borrower_loan_data:
+        st.info(":material/database_off: No data selected.")
+        return
+
     _show_bar_chart(borrower_loan_data)
 
     _show_metrics_selected_data(borrower_loan_data)
 
     st.write("")
     st.write("")
-
     _show_df(borrower_loan_data)
 
     show_default_footer()
