@@ -467,27 +467,27 @@ def render_page():
     st.write("")
     _show_bar_chart(df)
 
-    st.write("")
-    st.write("")
-    st.markdown("#### Loans Per Lender")
+    # st.write("")
+    # st.write("")
+    # st.markdown("#### Loans Per Lender")
 
-    slider_data: Dict = _show_slider(prepped_data)
+    # slider_data: Dict = _show_slider(prepped_data)
 
-    selected_data: List[Dict] = _get_selected_data(prepped_data, slider_data)
+    # selected_data: List[Dict] = _get_selected_data(prepped_data, slider_data)
 
-    st.write("")
-    _show_df_network_graph(selected_data)
+    # st.write("")
+    # _show_df_network_graph(selected_data)
 
-    if not selected_data:
-        st.info(":material/database_off: No data selected.")
-        return
+    # if not selected_data:
+    #     st.info(":material/database_off: No data selected.")
+    #     return
 
-    st.write("")
-    st.write("")
-    _show_metrics_selected_data(selected_data)
+    # st.write("")
+    # st.write("")
+    # _show_metrics_selected_data(selected_data)
 
-    st.write("")
-    _show_network_graph(selected_data)
+    # st.write("")
+    # _show_network_graph(selected_data)
 
     show_default_footer()
 

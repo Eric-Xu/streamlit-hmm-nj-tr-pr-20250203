@@ -17,11 +17,15 @@ HIDE_SCATTERPLOT_LINE_THRESHOLD = 10
 def _create_scatterplot(chart_data: pd.DataFrame) -> alt.LayerChart:
     scatter = (
         alt.Chart(chart_data)
-        .mark_circle(size=120, color=GREEN_HEX, opacity=1.0)
+        .mark_circle(size=120, color=GREEN_HEX, opacity=0.8)
         .encode(
             x=alt.X("lender_num_loans", title="Number of Loans"),
             y=alt.Y("num_repeat_borrowers", title="Number of Repeat Borrowers"),
-            tooltip=["lender", "lender_num_loans", "num_repeat_borrowers"],
+            tooltip=[
+                alt.Tooltip("lender", title="Lender"),
+                alt.Tooltip("lender_num_loans", title="# Loans"),
+                alt.Tooltip("num_repeat_borrowers", title="# Repeat Borrowers"),
+            ],
         )
         .properties(width="container")
     )

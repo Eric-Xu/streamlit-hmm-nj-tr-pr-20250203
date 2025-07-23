@@ -30,7 +30,11 @@ def _create_scatterplot(chart_data: pd.DataFrame) -> alt.LayerChart:
         .encode(
             x=alt.X("lender_num_loans", title="Number of Loans"),
             y=alt.Y("num_churned_borrowers", title="Number of Churned Borrowers"),
-            tooltip=["lender", "lender_num_loans", "num_churned_borrowers"],
+            tooltip=[
+                alt.Tooltip("lender", title="Lender"),
+                alt.Tooltip("lender_num_loans", title="# Loans"),
+                alt.Tooltip("num_churned_borrowers", title="# Churned Borrowers"),
+            ],
         )
         .properties(width="container")
     )

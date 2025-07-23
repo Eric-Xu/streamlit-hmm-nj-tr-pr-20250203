@@ -64,6 +64,10 @@ def _create_polar_bar_chart(prepped_data: List[Dict]) -> alt.LayerChart:
             theta=alt.Theta("month:O"),
             radius=alt.Radius("loan_count").scale(type="linear"),
             radius2=alt.datum(1),
+            tooltip=[
+                alt.Tooltip("month", title="Month"),
+                alt.Tooltip("loan_count", title="# Loans"),
+            ],
         )
     )
 

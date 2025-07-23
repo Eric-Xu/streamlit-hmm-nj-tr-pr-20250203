@@ -23,9 +23,9 @@ def _create_horizontal_bar_chart(
             y=alt.Y("lender:N", sort=None, title=None, axis=alt.Axis(labelLimit=0)),
             color=alt.Color("borrower_status:N", scale=color_scale, legend=None),
             tooltip=[
-                alt.Tooltip("num_borrowers:Q", title="num_borrowers"),
-                alt.Tooltip("lender:N", title="lender"),
-                alt.Tooltip("borrower_status:N", title="borrower_status"),
+                alt.Tooltip("num_borrowers:Q", title="# Borrowers"),
+                alt.Tooltip("borrower_status:N", title="Borrower Status"),
+                alt.Tooltip("lender:N", title="Lender"),
             ],
         )
     )
@@ -178,7 +178,7 @@ def render_page() -> None:
 
     st.write("")
     st.markdown(
-        "#### Who signed the most clients that previously borrowed from other lenders?"
+        "#### Who gained the most clients that previously borrowed from another lender?"
     )
 
     top_n_gained: int = st.slider(

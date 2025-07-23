@@ -1,6 +1,6 @@
 import streamlit as st
 
-from constants.dataset import END_DATE, LOCATION, START_DATE
+from constants.dataset import END_DATE, LOCATION, PROPERTY_TYPES, START_DATE
 
 
 def show_st_h1(text, w_divider=False) -> None:
@@ -24,12 +24,14 @@ def show_st_h2(text, w_divider=False) -> None:
 
 
 def show_default_footer() -> None:
+    property_types: str = ", ".join(PROPERTY_TYPES)
     footer_text = f"""
     The data on this page represents loans with the following properties:  
-    (a) Location: {LOCATION}.  
-    (b) Recording Date: {START_DATE} to {END_DATE}.  
-    (c) Property Types: XYZ.  
-    (d) Loan Types: XYZ.
+    (a) Location: {LOCATION}
+    (b) Recording Date: {START_DATE} to {END_DATE}
+    (c) Property Types: {property_types}
+    
+    Loans greater than $10 million are excluded. Loans less than $10 million with values beyond 3 standard deviations are also excluded.
     """
     show_st_footer_p(footer_text, w_divider=True)
 
