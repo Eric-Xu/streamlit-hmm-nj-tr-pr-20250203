@@ -4,12 +4,14 @@ from typing import Dict, List
 import pandas as pd
 import streamlit as st
 
-from constants.dataset import END_DATE, LOCATION, START_DATE
 from pipelines.prepare_loan_data import prep_data
 from utils.formatting import to_currency
 from utils.gui import show_st_h1, show_st_h2
 from utils.io import load_json
-from utils.party_to_loan_timeline import show_timeline_network_graph
+from utils.party_to_loan_timeline import (
+    get_timeline_network_graph_nodes_edges,
+    show_timeline_network_graph,
+)
 
 
 def _count_repeat_lenders(selected_data: List[Dict]) -> int:
@@ -73,7 +75,7 @@ def _show_df(selected_data: List[Dict]) -> None:
     columns_to_keep = ["recordingDate", "lenderName", "loanAmount"]
     df = df[columns_to_keep]
     df["loanAmount"] = pd.to_numeric(df["loanAmount"], errors="coerce")
-    df = df.sort_values("recordingDate")
+    df = df.sort_values("recordingDate", ascending=False).reset_index(drop=True)
 
     st.dataframe(
         df,
@@ -130,8 +132,6 @@ def _show_introduction() -> None:
         1. {top_borrower_lines[4] if len(top_borrower_lines) > 4 else ""}
         
         Simply type or select the borrower's name in the search field below to begin.
-
-        *(This data covers loans recorded from **{START_DATE}** to **{END_DATE}**)*.
         """
     )
 
@@ -175,7 +175,9 @@ def _show_network_graph(selected_data: List[Dict]) -> None:
     if not selected_data:
         return
 
-    show_timeline_network_graph("lender", selected_data)
+    party = "lender"
+    nodes, edges = get_timeline_network_graph_nodes_edges(selected_data, party)
+    show_timeline_network_graph(nodes, edges)
 
     borrower_name: str = selected_data[0]["buyerName"]
     st.info(
@@ -205,7 +207,7 @@ def _show_selectbox(prepped_data: List[Dict]) -> str:
 
 def render_page():
     show_st_h1("Borrower Analysis")
-    show_st_h2(LOCATION, w_divider=True)
+    show_st_h2("Borrowing Timeline", w_divider=True)
 
     prepped_data_file_path: str = prep_data()
     prepped_data: List[Dict] = load_json(prepped_data_file_path)

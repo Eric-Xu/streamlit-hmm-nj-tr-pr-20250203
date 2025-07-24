@@ -1,13 +1,13 @@
 from collections import Counter, defaultdict
-from typing import Dict, List, Set
+from typing import Dict, List, Set, Tuple
 
 import pandas as pd
 import streamlit as st
 
-from constants.dataset import END_DATE, START_DATE
 from pipelines.prepare_loan_data import prep_data
+from utils.borrower import get_borrower_to_last_lender
 from utils.formatting import to_currency
-from utils.gui import show_st_h1, show_st_h2
+from utils.gui import show_default_footer, show_st_h1, show_st_h2, show_st_info
 from utils.io import load_json
 from utils.lender import (
     get_lender_to_borrowers,
@@ -15,37 +15,50 @@ from utils.lender import (
     get_lender_to_lost_borrowers,
     get_lender_to_repeat_borrowers,
 )
-from utils.party_to_loan_timeline import show_timeline_network_graph
+from utils.party_to_loan_timeline import (
+    NODE_COLOR_CURRENT_ONE_TIME_BORROWER,
+    NODE_COLOR_CURRENT_REPEAT_BORROWER,
+    NODE_COLOR_LOST_ONE_TIME_BORROWER,
+    NODE_COLOR_LOST_REPEAT_BORROWER,
+    NODE_X_VALUE_LOST_ONE_TIME_BORROWER,
+    NODE_X_VALUE_LOST_REPEAT_BORROWER,
+    get_timeline_network_graph_nodes_edges,
+    show_timeline_network_graph,
+)
+
+NUM_NODE_MAX_THRESHOLD = 800
+
+
+def _get_df_data(prepped_data: List[Dict], lender: str) -> List[Dict]:
+    borrower_to_last_lender: Dict[str, str] = get_borrower_to_last_lender(prepped_data)
+    lender_to_repeat_borrowers: Dict[str, Set[str]] = get_lender_to_repeat_borrowers(
+        prepped_data
+    )
+    repeat_borrowers: Set[str] = lender_to_repeat_borrowers.get(lender, set())
+
+    records: List[Dict] = []
+    for record in prepped_data:
+        if record.get("lenderName", "") == lender:
+            borrower = record.get("buyerName")
+            if not isinstance(borrower, str):
+                continue
+
+            last_lender = borrower_to_last_lender.get(borrower, "")
+
+            row = {
+                "buyerName": borrower,
+                "has_churned": "Yes" if last_lender != lender else "",
+                "is_repeat": "Yes" if borrower in repeat_borrowers else "",
+                "loanAmount": record.get("loanAmount"),
+                "recordingDate": record.get("recordingDate"),
+            }
+            records.append(row)
+
+    return records
 
 
 def _get_selected_data(prepped_data: List[Dict], lender: str) -> List[Dict]:
     return [d for d in prepped_data if d.get("lenderName", "") == lender]
-
-
-def _show_df(selected_data: List[Dict]) -> None:
-    if not selected_data:
-        return
-
-    df = pd.DataFrame(selected_data)
-
-    columns_to_keep = ["recordingDate", "buyerName", "loanAmount"]
-    df = df[columns_to_keep]
-    df["loanAmount"] = pd.to_numeric(df["loanAmount"], errors="coerce")
-    df = df.sort_values("recordingDate")
-
-    st.dataframe(
-        df,
-        use_container_width=True,
-        column_config={
-            "recordingDate": st.column_config.TextColumn(
-                "Recording Date", width="small"
-            ),
-            "buyerName": st.column_config.TextColumn("Borrower Name", width="medium"),
-            "loanAmount": st.column_config.NumberColumn(
-                "Loan Amount", width="small", format="dollar"
-            ),
-        },
-    )
 
 
 def _get_top_lenders_by_repeat_borrower_pct(
@@ -86,6 +99,36 @@ def _get_top_lenders_by_repeat_borrower_pct(
     return results[:top_n]
 
 
+def _show_df(prepped_data: List[Dict], lender: str) -> None:
+    records: List[Dict] = _get_df_data(prepped_data, lender)
+
+    if not records:
+        return
+
+    column_order = [
+        "recordingDate",
+        "buyerName",
+        "is_repeat",
+        "has_churned",
+        "loanAmount",
+    ]
+    df = pd.DataFrame(records)[column_order].drop_duplicates()
+    df["loanAmount"] = pd.to_numeric(df["loanAmount"], errors="coerce")
+    df = df.sort_values("recordingDate", ascending=False).reset_index(drop=True)
+
+    st.dataframe(
+        df,
+        use_container_width=True,
+        column_config={
+            "buyerName": st.column_config.TextColumn("Borrower Name"),
+            "has_churned": st.column_config.TextColumn("Has Churned"),
+            "is_repeat": st.column_config.TextColumn("Is Repeat"),
+            "loanAmount": st.column_config.NumberColumn("Loan Amount", format="dollar"),
+            "recordingDate": st.column_config.TextColumn("Recording Date"),
+        },
+    )
+
+
 def _show_introduction() -> None:
     top_n = 5
     min_num_loans = 10
@@ -104,10 +147,6 @@ def _show_introduction() -> None:
 
     st.markdown(
         f"""
-        View any lender's origination activity over a 12-month period. Explore 
-        their most active month or compare the number of one-time borrowers to 
-        repeat borrowers.
-
         The top {top_n} lenders (with at least {min_num_loans} loans) ranked 
         by the **percentage of repeat borrowers** are:
         1. {top_lender_lines[0] if len(top_lender_lines) > 0 else ""}
@@ -115,19 +154,53 @@ def _show_introduction() -> None:
         3. {top_lender_lines[2] if len(top_lender_lines) > 2 else ""}
         4. {top_lender_lines[3] if len(top_lender_lines) > 3 else ""}
         5. {top_lender_lines[4] if len(top_lender_lines) > 4 else ""}
-        
-        Simply type or select the lender's name in the search field below to begin.
 
-        *(This data covers loans recorded from **{START_DATE}** to **{END_DATE}**)*.
+        Use the chart below to view a lender's most recent origination activities
+        over a 12-month period.
         """
     )
 
 
-def _show_network_graph(selected_data: List[Dict]) -> None:
-    if not selected_data:
+def _get_network_graph_nodes_edges(
+    selected_data: List[Dict], lost_borrowers: Set[str]
+) -> Tuple[List, List]:
+    party = "borrower"
+    nodes, edges = get_timeline_network_graph_nodes_edges(selected_data, party)
+
+    if not lost_borrowers:
+        return nodes, edges
+
+    for record in selected_data:
+        borrower = record.get("buyerName")
+        if borrower not in lost_borrowers:
+            continue
+        record_id = str(record.get("id"))
+        lost_borrower_node_id: str = f"{party}_{record_id}"
+        for node in nodes:
+            if (
+                node.id == lost_borrower_node_id
+                and node.color == NODE_COLOR_CURRENT_REPEAT_BORROWER
+            ):
+                node.color = NODE_COLOR_LOST_REPEAT_BORROWER
+                node.x = NODE_X_VALUE_LOST_REPEAT_BORROWER
+            elif (
+                node.id == lost_borrower_node_id
+                and node.color == NODE_COLOR_CURRENT_ONE_TIME_BORROWER
+            ):
+                node.color = NODE_COLOR_LOST_ONE_TIME_BORROWER
+                node.x = NODE_X_VALUE_LOST_ONE_TIME_BORROWER
+
+    return nodes, edges
+
+
+def _show_network_graph(selected_data: List[Dict], lost_borrowers: Set[str]) -> None:
+    nodes, edges = _get_network_graph_nodes_edges(selected_data, lost_borrowers)
+
+    if len(nodes) > NUM_NODE_MAX_THRESHOLD:
+        show_st_info("chart_disabled")
         return
 
-    show_timeline_network_graph("borrower", selected_data)
+    show_timeline_network_graph(nodes, edges)
 
     lender_name: str = selected_data[0]["lenderName"]
     st.info(
@@ -139,6 +212,8 @@ def _show_network_graph(selected_data: List[Dict]) -> None:
         period since the lender's last recorded loan.
         **Arrows** connect each borrower to their respective loans, and each loan to 
         the month in which it was recorded.
+        Borrowers on **the right side** are ones who used a different lender to fund
+        their latest project.
         """
     )
 
@@ -148,7 +223,7 @@ def _show_selectbox(prepped_data: List[Dict]) -> str:
         set(d.get("lenderName", "") for d in prepped_data if d.get("lenderName", ""))
     )
     option: str = st.selectbox(
-        "Enter the lender's name.",
+        "**Enter the lender's name.**",
         lenders,
     )
     return option
@@ -213,9 +288,20 @@ def render_page():
 
     selected_data: List[Dict] = _get_selected_data(prepped_data, selected_lender)
 
-    _show_network_graph(selected_data)
+    if not selected_data:
+        show_st_info("no_data_selected")
+        return
 
-    _show_df(selected_data)
+    lender_to_lost_borrowers: Dict[str, Set[str]] = get_lender_to_lost_borrowers(
+        prepped_data
+    )
+    lost_borrowers: Set[str] = lender_to_lost_borrowers.get(selected_lender, set())
+    _show_network_graph(selected_data, lost_borrowers)
+
+    st.write("")
+    _show_df(prepped_data, selected_lender)
+
+    show_default_footer()
 
 
 render_page()

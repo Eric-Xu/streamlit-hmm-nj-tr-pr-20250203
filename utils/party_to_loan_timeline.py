@@ -1,3 +1,4 @@
+import random
 from collections import Counter
 from datetime import date, datetime
 from typing import Dict, List, Tuple
@@ -15,8 +16,20 @@ from constants.css import (
 from constants.dataset import PARTY_TO_DATASET_KEY
 from utils.formatting import to_currency
 
+NODE_COLOR_CURRENT_ONE_TIME_BORROWER = RED_HEX
+NODE_COLOR_CURRENT_REPEAT_BORROWER = PURPLE_HEX
+NODE_COLOR_LOAN = YELLOW_HEX
+NODE_COLOR_LOST_ONE_TIME_BORROWER = RED_HEX
+NODE_COLOR_LOST_REPEAT_BORROWER = PURPLE_HEX
+NODE_COLOR_MONTH = GREEN_HEX
+NODE_X_VALUE_CURRENT_REPEAT_BORROWER = 0
+NODE_X_VALUE_CURRENT_ONE_TIME_BORROWER = 50
+NODE_X_VALUE_MONTH = 400
+NODE_X_VALUE_LOST_ONE_TIME_BORROWER = 750
+NODE_X_VALUE_LOST_REPEAT_BORROWER = 800
 
-def _add_party_num_loans(party: str, data: List[Dict]) -> List[Dict]:
+
+def _add_party_num_loans(data: List[Dict], party: str) -> List[Dict]:
     """
     Adds a '{lender/borrower}_selected_num_loans' key to each dict in the list,
     counting how many times each party name occurs in the list.
@@ -36,7 +49,7 @@ def _add_party_num_loans(party: str, data: List[Dict]) -> List[Dict]:
     return data
 
 
-def _count_unique_members(party: str, data: List[Dict]) -> int:
+def _count_unique_members(data: List[Dict], party: str) -> int:
     party_dataset_key: str = PARTY_TO_DATASET_KEY[party]
     member_names = set()
     for d in data:
@@ -49,9 +62,9 @@ def _count_unique_members(party: str, data: List[Dict]) -> int:
 
 
 def _create_loan_date_relationships(
-    party, data: List[Dict], nodes: List, edges: List
+    data: List[Dict], party: str, nodes: List, edges: List
 ) -> Tuple[List, List]:
-    unique_members: int = _count_unique_members(party, data)
+    unique_members: int = _count_unique_members(data, party)
     y_scaling_factor: int = _get_y_scaling_factor(unique_members)
 
     latest_date: str | None = _get_latest_date(data)
@@ -69,7 +82,6 @@ def _create_loan_date_relationships(
         month_node_id = f"month_{i+1}"
         month_node_ids[first_of_month] = month_node_id
         label_value: str = f"  {month_node_label}  "
-        x_value = 400
         y_value = i * y_scaling_factor
         nodes.append(
             Node(
@@ -77,12 +89,12 @@ def _create_loan_date_relationships(
                 title=month_node_title,
                 label=label_value,
                 shape="circle",
-                color=GREEN_HEX,
+                color=NODE_COLOR_MONTH,
                 labelColor=BLACK_HEX,
                 borderWidth=0,
                 physics=False,
                 fixed={"x": True, "y": True},
-                x=x_value,
+                x=NODE_X_VALUE_MONTH,
                 y=y_value,
             )
         )
@@ -118,14 +130,14 @@ def _create_loan_date_relationships(
 
 
 def _create_party_loan_relationships(
-    party: str, data: List[Dict], nodes: List, edges: List
+    data: List[Dict], party: str, nodes: List, edges: List
 ) -> Tuple[List, List]:
     party_dataset_key: str = PARTY_TO_DATASET_KEY[party]
 
     member_name_to_node_id: Dict[str, str] = dict()  # Map member name to node ID
 
-    data = _add_party_num_loans(party, data)
-    unique_members: int = _count_unique_members(party, data)
+    data = _add_party_num_loans(data, party)
+    unique_members: int = _count_unique_members(data, party)
     mass: float = _get_scaled_mass(unique_members)
 
     for datum in data:
@@ -136,8 +148,14 @@ def _create_party_loan_relationships(
         party_num_loans: int = datum.get(f"{party}_selected_num_loans", 0)
 
         # Assign different node style for repeat members.
-        color: str = PURPLE_HEX if party_num_loans > 1 else RED_HEX
-        x_value: int = 0 if party_num_loans > 1 else 50
+        color: str = (
+            NODE_COLOR_CURRENT_REPEAT_BORROWER
+            if party_num_loans > 1
+            else NODE_COLOR_CURRENT_ONE_TIME_BORROWER
+        )
+        x_value: int = _get_party_node_x_value(
+            party_num_loans, unique_members, member_name
+        )
         label: str | None = member_name if party_num_loans > 1 else None
 
         # Only create new party nodes based on the member name.
@@ -172,7 +190,7 @@ def _create_party_loan_relationships(
                 id=loan_node_id,
                 title=loan_node_title,
                 label=None,
-                color=YELLOW_HEX,
+                color=NODE_COLOR_LOAN,
                 labelColor=BLACK_HEX,
                 size=20,
                 borderWidth=0,
@@ -249,15 +267,45 @@ def _get_latest_date(data: List[Dict]) -> str | None:
     return max(dates)
 
 
-def _get_scaled_mass(unique_members: int) -> float:
-    if unique_members > 40:
-        mass = 0.1
-    elif unique_members > 30:
-        mass = 0.2
+def _get_party_node_x_value(
+    party_num_loans: int, unique_members: int, member_name: str
+) -> int:
+    """
+    Returns the x position for a party node. For one-time borrowers, a
+    deterministic pseudo-random offset is generated using a random number
+    generator seeded with the member's name. This ensures each node's position
+    is stable across rerenders and user interactions (such as clicking),
+    preventing the chart from jumping or rerendering unpredictably. For repeat
+    borrowers, a fixed x position is used.
+    """
+    if party_num_loans > 1:
+        return NODE_X_VALUE_CURRENT_REPEAT_BORROWER
+
+    base = NODE_X_VALUE_CURRENT_ONE_TIME_BORROWER
+    if unique_members > 100:
+        spread = 75
     elif unique_members > 20:
-        mass = 0.3
-    elif unique_members > 10:
-        mass = 0.8
+        spread = 50
+    else:
+        spread = 0
+
+    if spread > 0:
+        rng = random.Random(member_name)
+        x_value = rng.randint(base, base + spread)
+    else:
+        x_value = base
+
+    return x_value
+
+
+def _get_scaled_mass(unique_members: int) -> float:
+    # Higher mass means stronger repulsion between nodes
+    if unique_members > 100:
+        mass = 0.25
+    elif unique_members > 50:
+        mass = 0.5
+    elif unique_members > 20:
+        mass = 0.7
     else:
         mass = 1.0
 
@@ -265,31 +313,41 @@ def _get_scaled_mass(unique_members: int) -> float:
 
 
 def _get_y_scaling_factor(unique_members: int) -> int:
+    # Increase vertical spacing for more members
     if unique_members > 100:
-        y_scaling_factor = 300
+        y_scaling_factor = 400
     elif unique_members > 80:
         y_scaling_factor = 250
     elif unique_members > 60:
         y_scaling_factor = 200
     elif unique_members > 40:
         y_scaling_factor = 150
+    elif unique_members > 20:
+        y_scaling_factor = 125
     else:
         y_scaling_factor = 100
 
     return y_scaling_factor
 
 
-def show_timeline_network_graph(party: str, data: List[Dict]) -> None:
+def get_timeline_network_graph_nodes_edges(
+    data: List[Dict], party: str
+) -> Tuple[List, List]:
     nodes, edges = [], []
-    nodes, edges = _create_party_loan_relationships(party, data, nodes, edges)
-    nodes, edges = _create_loan_date_relationships(party, data, nodes, edges)
+    nodes, edges = _create_party_loan_relationships(data, party, nodes, edges)
+    nodes, edges = _create_loan_date_relationships(data, party, nodes, edges)
 
-    # Create the network graph
+    return nodes, edges
+
+
+def show_timeline_network_graph(nodes: List, edges: List) -> None:
+    height = 1000
     config = Config(
-        height=1000,
+        height=height,
         directed=True,
         nodeHighlightBehavior=True,
         node={"labelProperty": "label"},
         link={"labelProperty": "label"},
     )
+
     agraph(nodes=nodes, edges=edges, config=config)

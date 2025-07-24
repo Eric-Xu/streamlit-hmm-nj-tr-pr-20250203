@@ -1,4 +1,4 @@
-LOCATION = "Los Angeles, CA"
+LOCATION = "Philadelphia, PA"
 
 PROPERTY_TYPES = [
     "Single Family Residential",

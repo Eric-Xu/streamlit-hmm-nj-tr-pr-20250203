@@ -71,7 +71,6 @@ def _get_chord_diagram_data(prepped_data: List[Dict]) -> pd.DataFrame:
 
 def _show_chord_diagram(prepped_data: List[Dict]) -> None:
     fromto_lenders_w_counts_df: pd.DataFrame = _get_chord_diagram_data(prepped_data)
-    st.dataframe(fromto_lenders_w_counts_df)  # alice
 
     chord_diagram: Figure = _create_chord_diagram(fromto_lenders_w_counts_df)
 
@@ -84,6 +83,17 @@ def _show_chord_diagram(prepped_data: List[Dict]) -> None:
         """
     )
 
+    st.dataframe(fromto_lenders_w_counts_df)
+
+
+def _show_introduction() -> None:
+    st.write(
+        """
+        TODO: 
+        - Change chord diagram segment color to indicate net change.
+    """
+    )
+
 
 def render_page() -> None:
     show_st_h1("Lender Analysis")
@@ -92,8 +102,8 @@ def render_page() -> None:
     prepped_data_file_path: str = prep_data()
     prepped_data: List[Dict] = load_json(prepped_data_file_path)
 
-    # st.write("")
-    # _show_introduction()
+    st.write("")
+    _show_introduction()
 
     st.write("")
     st.write("")

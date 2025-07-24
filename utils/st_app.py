@@ -68,17 +68,17 @@ def setup_page_navigation() -> StreamlitPage:
     )
     borrower_loans_page = st.Page(
         os.path.join(PAGE_DIR, BORROWER_LOANS_PAGE_FILE),
-        title="Borrowers & Loans",
+        title="(x) Borrowers & Loans",
         icon=":material/scatter_plot:",
     )
     borrower_timeline_page = st.Page(
         os.path.join(PAGE_DIR, BORROWER_TIMELINE_PAGE_FILE),
-        title="Borrower Timeline",
+        title="(x) Borrowing Timeline",
         icon=":material/calendar_month:",
     )
     borrower_lenders_page = st.Page(
         os.path.join(PAGE_DIR, BORROWER_LENDERS_PAGE_FILE),
-        title="Borrowers & Lenders",
+        title="(x) Borrowers & Lenders",
         icon=":material/scatter_plot:",
     )
     lender_market_share_page = st.Page(
@@ -103,7 +103,7 @@ def setup_page_navigation() -> StreamlitPage:
     )
     lender_appeal_page = st.Page(
         os.path.join(PAGE_DIR, LENDER_APPEAL_PAGE_FILE),
-        title="Lender Appeal",
+        title="(x) Lender Appeal",
         icon=":material/favorite:",
     )
     lender_origination_timeline_page = st.Page(
@@ -129,7 +129,6 @@ def setup_page_navigation() -> StreamlitPage:
         "Borrower-Lender Relationship": [
             borrower_lenders_page,
             # relationships_page,
-            # relationship_timeline_page,
         ],
     }
     pg: StreamlitPage = st.navigation(pages)

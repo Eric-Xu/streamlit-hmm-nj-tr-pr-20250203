@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Dict, List, Set
+from typing import Dict, List
 
 
 def get_avg_loan_amount(prepped_data: List[Dict]) -> float:

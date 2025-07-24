@@ -5,9 +5,10 @@ import pandas as pd
 import streamlit as st
 
 from constants.css import BLUE_HEX, GREEN_HEX
+from constants.dataset import LOCATION
 from pipelines.prepare_loan_data import prep_data
 from utils.formatting import to_currency
-from utils.gui import show_default_footer, show_st_h1, show_st_h2
+from utils.gui import show_default_footer, show_st_h1, show_st_h2, show_st_info
 from utils.io import load_json
 from utils.party_to_loan_relationship import show_relationship_network_graph
 
@@ -20,7 +21,11 @@ def _get_bar_chart_data(
         df["loanAmount"], bins=bin_edges, labels=bin_labels, right=False
     )
     # Group by lender and bin, count number of loans
-    grouped = df.groupby(["lenderName", "loan_amount_bin"]).size().reset_index()
+    grouped = (
+        df.groupby(["lenderName", "loan_amount_bin"], observed=True)
+        .size()
+        .reset_index()
+    )
     grouped = grouped.rename(columns={0: "num_loans", "lenderName": "lender"})
 
     return grouped
@@ -447,7 +452,7 @@ def _show_slider(prepped_data: List[Dict]) -> Dict:
 
 def render_page():
     show_st_h1("Lender Analysis")
-    show_st_h2("Market Share", w_divider=True)
+    show_st_h2(f"Market Share - {LOCATION}", w_divider=True)
 
     prepped_data_file_path: str = prep_data()
     prepped_data: List[Dict] = load_json(prepped_data_file_path)
@@ -479,7 +484,7 @@ def render_page():
     # _show_df_network_graph(selected_data)
 
     # if not selected_data:
-    #     st.info(":material/database_off: No data selected.")
+    #     show_st_info("no_data_selected")
     #     return
 
     # st.write("")

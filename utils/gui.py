@@ -3,6 +3,15 @@ import streamlit as st
 from constants.dataset import END_DATE, LOCATION, PROPERTY_TYPES, START_DATE
 
 
+def show_st_info(type: str) -> None:
+    if type == "chart_disabled":
+        st.info(
+            ":material/bar_chart_off: Chart disabled because data is too large to display."
+        )
+    elif type == "no_data_selected":
+        st.info(":material/database_off: No data selected.")
+
+
 def show_st_h1(text, w_divider=False) -> None:
     h1_str = f"<h1 class='st-key-sans-serif-header'>{text}</h1>"
     divider_str = "<hr class='st-key-header-divider'>"

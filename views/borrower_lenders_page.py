@@ -1,13 +1,11 @@
 from typing import Dict, List
 
-import pandas as pd
 import streamlit as st
 from streamlit_agraph import Config, Edge, Node, agraph
 
 from constants.css import BLACK_HEX, BLUE_HEX, GREEN_HEX, GREEN_LIGHT_HEX
 from constants.dataset import END_DATE, LOCATION, START_DATE
 from pipelines.prepare_loan_data import prep_data
-from utils.formatting import to_currency
 from utils.gui import show_st_h1, show_st_h2
 from utils.io import load_json
 

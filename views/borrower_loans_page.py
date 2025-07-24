@@ -194,7 +194,7 @@ def _show_slider_loans_per_borrower(prepped_data: List[Dict]) -> Dict:
 
 
 def render_page():
-    show_st_h1("Borrower Activity")
+    show_st_h1("Borrower Analysis")
     show_st_h2(LOCATION, w_divider=True)  # Borrower Marketshare?
 
     prepped_data_file_path: str = prep_data()

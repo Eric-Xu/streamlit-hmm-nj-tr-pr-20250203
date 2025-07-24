@@ -9,7 +9,7 @@ from constants.css import GREEN_HEX, RED_HEX
 from constants.dataset import END_DATE, LOCATION, START_DATE
 from pipelines.prepare_loan_data import prep_data
 from utils.formatting import to_currency
-from utils.gui import show_default_footer, show_st_h1, show_st_h2
+from utils.gui import show_default_footer, show_st_h1, show_st_h2, show_st_info
 from utils.io import load_json
 from utils.metrics import get_avg_loan_amount, get_loan_amounts, get_monthly_num_loans
 
@@ -225,7 +225,7 @@ def _show_bar_chart(borrower_loan_data: List[Dict]) -> None:
 
 def _show_df(borrower_loan_data: List[Dict]) -> None:
     if not borrower_loan_data:
-        st.info(":material/database_off: No data selected.")
+        show_st_info("no_data_selected")
         return
 
     amounts: List[int] = [int(item["amount"]) for item in borrower_loan_data]
@@ -488,7 +488,7 @@ def render_page() -> None:
     borrower_loan_data: List[Dict] = _prep_borrower_loan_data(selected_data)
 
     if not borrower_loan_data:
-        st.info(":material/database_off: No data selected.")
+        show_st_info("no_data_selected")
         return
 
     _show_bar_chart(borrower_loan_data)

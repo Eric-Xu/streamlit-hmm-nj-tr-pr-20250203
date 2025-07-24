@@ -149,8 +149,8 @@ def _show_df(prepped_data: List[Dict], lender: str) -> None:
 def _show_introduction() -> None:
     st.write(
         """
-        TODO
-    """
+        A "repeat borrower" is defined as someone who has taken out at least two loans from the same lender.
+        """
     )
 
 
@@ -196,7 +196,7 @@ def _show_scatterplot(prepped_data: List[Dict]) -> None:
     st.info(
         f"""
         ##### :material/cognition: How to Interpret the Chart
-        TODO
+        Each point represents a lender, with its position corresponding to the total number of loans originated on the X-axis and the number of repeat borrowers on the Y-axis. For datasets with 10 or more points, a line of best fit is also shown. The farther a point lies above the line, the higher the repeat borrower rate relative to other lenders, and vice versa.
         """
     )
 
