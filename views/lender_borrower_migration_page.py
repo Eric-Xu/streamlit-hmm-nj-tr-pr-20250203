@@ -69,44 +69,31 @@ def _get_borrower_migration_top_n(
         borrower_migration_all_lenders
     )
 
-    # Sort the df by num_borrowers based on the borrower_status ("gained" or "lost")
-    if borrower_status == "gained":
-        migration_data_all_lenders["tmp_sort_col"] = migration_data_all_lenders.apply(
-            lambda row: (
-                row["num_borrowers"] if row["borrower_status"] == "gained" else 0
-            ),
-            axis=1,
-        )
-        migration_data_all_lenders = migration_data_all_lenders.sort_values(
-            by="tmp_sort_col", ascending=False
-        ).drop(columns=["tmp_sort_col"])
-    else:
-        migration_data_all_lenders["tmp_sort_col"] = migration_data_all_lenders.apply(
-            lambda row: row["num_borrowers"] if row["borrower_status"] == "lost" else 0,
-            axis=1,
-        )
-        migration_data_all_lenders = migration_data_all_lenders.sort_values(
-            by="tmp_sort_col", ascending=True
-        ).drop(columns=["tmp_sort_col"])
+    # Sort by num_borrowers (descending for "gained", ascending for "lost".
+    # "gained" borrowers are positive integers. "lost" are negative.)
+    ascending = borrower_status == "lost"
+    matched_borrower_status_df = migration_data_all_lenders[
+        migration_data_all_lenders["borrower_status"] == borrower_status
+    ].sort_values(by="num_borrowers", ascending=ascending)
 
     # Get top_n lenders for the given borrower status.
-    top_n_matching_status_records = migration_data_all_lenders.head(top_n)
-    top_n_lenders = set(top_n_matching_status_records["lender"])
+    top_n_matching_status_df = matched_borrower_status_df.head(top_n)
+    top_n_lenders = set(top_n_matching_status_df["lender"])
 
     # Get records of the opposing status for the top_n lenders.
     opposite_status = "lost" if borrower_status == "gained" else "gained"
-    top_n_opposite_status_records = migration_data_all_lenders[
+    top_n_opposite_status_df = migration_data_all_lenders[
         (migration_data_all_lenders["lender"].isin(top_n_lenders))
         & (migration_data_all_lenders["borrower_status"] == opposite_status)
     ]
 
-    # Return the number of gained and lost borrowers for the top_n lenders.
-    top_n_both_status_records = pd.concat(
-        [top_n_matching_status_records, top_n_opposite_status_records],
+    # Return the combined df of gained and lost borrowers for the top_n lenders.
+    top_n_both_status_df = pd.concat(
+        [top_n_matching_status_df, top_n_opposite_status_df],
         ignore_index=True,
     )
 
-    return top_n_both_status_records
+    return top_n_both_status_df
 
 
 def _show_horizontal_bar_chart(chart_data: pd.DataFrame) -> None:
