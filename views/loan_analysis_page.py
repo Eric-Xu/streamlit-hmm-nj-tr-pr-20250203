@@ -251,10 +251,8 @@ def _show_introduction(prepped_data: List[Dict]) -> None:
 
     st.markdown(
         f"""
-        For the period between {START_DATE} to {END_DATE}...
-        
-        There were **{total_loans:,}** loans recorded in total, with an average
-        amount of **${average_amount:,.0f}** per loan. 
+        Between {START_DATE} to {END_DATE}, a total of **{total_loans:,}** loans 
+        were originated, with an average amount of **${average_amount:,.0f}**. 
         """
     )
 
@@ -273,8 +271,8 @@ def _show_loans_by_month(prepped_data: List[Dict]) -> None:
         f"""
         #### Number of Loans by Month
 
-        **{max_num_loans_month}** had the highest origination activity with 
-        **{max_num_loans:,}** loans recorded, while **{min_num_loans_month}** 
+        **{max_num_loans_month}** had the highest lending activity with 
+        **{max_num_loans:,}** loan originations, while **{min_num_loans_month}** 
         was the slowest month with **{min_num_loans:,}**.
         """
     )

@@ -1,4 +1,4 @@
-from typing import Dict, List, Tuple
+from typing import Dict, List
 
 import altair as alt
 import pandas as pd
@@ -10,87 +10,12 @@ from pipelines.prepare_loan_data import prep_data
 from utils.formatting import to_currency
 from utils.gui import show_default_footer, show_st_h1, show_st_h2, show_st_info
 from utils.io import load_json
-from utils.party_to_loan_relationship import show_relationship_network_graph
-
-
-def _get_bar_chart_data(
-    df: pd.DataFrame, bin_edges: List[int], bin_labels: List[str]
-) -> pd.DataFrame:
-    # Assign bins to each loan
-    df["loan_amount_bin"] = pd.cut(
-        df["loanAmount"], bins=bin_edges, labels=bin_labels, right=False
-    )
-    # Group by lender and bin, count number of loans
-    grouped = (
-        df.groupby(["lenderName", "loan_amount_bin"], observed=True)
-        .size()
-        .reset_index()
-    )
-    grouped = grouped.rename(columns={0: "num_loans", "lenderName": "lender"})
-
-    return grouped
-
-
-def _get_bar_chart_edges_labels(
-    df: pd.DataFrame, required_item_count: int
-) -> Tuple[List[int], List[str]]:
-    bin_edge_to_mid_label = {
-        50_000: "$0 - $50K",
-        100_000: "$50K - $100K",
-        250_000: "$100K - $250K",
-        500_000: "$250K - $500K",
-        1_000_000: "$500K - $1M",
-        2_000_000: "$1M - $2M",
-        5_000_000: "$2M - $5M",
-        10_000_000: "$5M - $10M",
-    }
-    bin_edge_to_under_label = {
-        50_000: "Under $50K",
-        100_000: "Under $100K",
-        250_000: "Under $250K",
-        500_000: "Under $500K",
-        1_000_000: "Under $1M",
-    }
-    bin_edge_to_over_label = {
-        250_000: "Over $250K",
-        500_000: "Over $250K",
-        1_000_000: "Over $500K",
-        2_000_000: "Over $1M",
-        5_000_000: "Over $2M",
-        10_000_000: "Over $5M",
-    }
-
-    min_edge_value = _get_min_bin_edge(
-        df,
-        list(bin_edge_to_under_label.keys()),
-        required_item_count,
-    )
-    max_edge_value = _get_max_bin_edge(
-        df,
-        list(bin_edge_to_over_label.keys()),
-        required_item_count,
-    )
-
-    prepped_bin_edge_to_label: Dict[int, str] = {
-        k: v
-        for k, v in bin_edge_to_mid_label.items()
-        if k >= min_edge_value and k <= max_edge_value
-    }
-
-    if min_edge_value in prepped_bin_edge_to_label:
-        prepped_bin_edge_to_label[min_edge_value] = bin_edge_to_under_label[
-            min_edge_value
-        ]
-    if max_edge_value in prepped_bin_edge_to_label:
-        prepped_bin_edge_to_label[max_edge_value] = bin_edge_to_over_label[
-            max_edge_value
-        ]
-
-    prepped_bin_edge_to_label = dict(sorted(prepped_bin_edge_to_label.items()))
-    prepped_bin_labels: List[str] = list(prepped_bin_edge_to_label.values())
-    prepped_bin_edges: List[int] = [0] + list(prepped_bin_edge_to_label.keys())
-
-    return prepped_bin_edges, prepped_bin_labels
+from utils.lender import get_lender_to_loan_amount_bins
+from utils.market_share_stacked_bar import (
+    get_stacked_bar_edges_labels,
+    show_lender_market_share_stacked_bar,
+)
+from utils.party2loan_rel_net_graph import show_relationship_network_graph
 
 
 def _get_df_data(
@@ -122,29 +47,6 @@ def _get_df_data(
     return grouped_df
 
 
-def _get_max_bin_edge(df: pd.DataFrame, bin_edges: List[int], min_count: int) -> int:
-    sorted_edges = sorted(bin_edges, reverse=True)
-    for i, edge in enumerate(sorted_edges):
-        count = (df["loanAmount"] >= edge).sum()
-        if count > min_count:
-            if i == 1:
-                return sorted_edges[0]
-            else:
-                return sorted_edges[i - 1]
-
-    return sorted_edges[-2]
-
-
-def _get_min_bin_edge(df: pd.DataFrame, bin_edges: List[int], min_count: int) -> int:
-    sorted_edges = sorted(bin_edges)
-    for edge in bin_edges:
-        count = (df["loanAmount"] < edge).sum()
-        if count > min_count:
-            return edge
-
-    return sorted_edges[-1]
-
-
 def _get_selected_data(prepped_data: List[Dict], slider_data: Dict) -> List[Dict]:
     user_min_num_loans: int = slider_data["user_min_num_loans"]
     user_max_num_loans: int = slider_data["user_max_num_loans"]
@@ -158,32 +60,16 @@ def _get_selected_data(prepped_data: List[Dict], slider_data: Dict) -> List[Dict
     return selected_data
 
 
-def _show_bar_chart(df: pd.DataFrame) -> None:
+def _show_stacked_bar_chart(df: pd.DataFrame) -> None:
     required_item_count = 5
+    height = 500
+    y_title = "Loan Amount"
 
-    bin_edges, bin_labels = _get_bar_chart_edges_labels(df, required_item_count)
+    bin_edges, bin_labels = get_stacked_bar_edges_labels(df, required_item_count)
+    chart_data: pd.DataFrame = get_lender_to_loan_amount_bins(df, bin_edges, bin_labels)
 
-    source: pd.DataFrame = _get_bar_chart_data(df, bin_edges, bin_labels)
-
-    chart = (
-        alt.Chart(source)
-        .mark_bar()
-        .encode(
-            x=alt.X("sum(num_loans)", title="Total # of Loans").stack("normalize"),
-            y=alt.Y(
-                "loan_amount_bin",
-                title="Loan Amount",
-                sort=list(reversed(bin_labels)),  # descending order
-            ),
-            color=alt.Color("lender", legend=None),
-            tooltip=[
-                alt.Tooltip("num_loans", title="Total # of Loans"),
-                alt.Tooltip("lender", title="Lender"),
-            ],
-        )
-        .properties(height=500)
-    )
-    st.altair_chart(chart, use_container_width=True)
+    sorted_bin_labels: List[str] = list(reversed(bin_labels))  # descending order
+    show_lender_market_share_stacked_bar(chart_data, sorted_bin_labels, height, y_title)
 
     st.info(
         f"""
@@ -360,7 +246,7 @@ def _show_metrics_all_data(df: pd.DataFrame) -> None:
 
     col1, col2, col3 = st.columns(3)
     col1.metric("Total Lenders", total_lenders, border=True)
-    col2.metric("Average Loans Per Lender", int(avg_num_loans), border=True)
+    col2.metric("Average Loans Per Lender", round(avg_num_loans), border=True)
     col3.metric("Average Loan Amount", to_currency(avg_loan_amount), border=True)
 
 
@@ -470,7 +356,7 @@ def render_page():
     _show_metrics_all_data(df)
 
     st.write("")
-    _show_bar_chart(df)
+    _show_stacked_bar_chart(df)
 
     # st.write("")
     # st.write("")

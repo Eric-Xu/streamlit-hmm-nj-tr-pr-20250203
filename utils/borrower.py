@@ -3,18 +3,18 @@ from typing import Dict, List, Set
 
 def get_borrower_to_last_lender(prepped_data: List[Dict]) -> Dict[str, str]:
     """
-    For each borrower (buyerName), find the lender (lenderName) from their most recent loan (by recordingDate).
+    For each borrower (buyerName), find the lender (lenderName) from their most recent loan (by saleDate).
     Returns a dict mapping borrower name to last lender name.
     """
     borrower_to_latest: Dict[str, Dict] = {}
     for record in prepped_data:
         borrower = record.get("buyerName")
-        date = record.get("recordingDate")
+        date = record.get("saleDate")
         if not borrower or not date:
             continue
         if (
             borrower not in borrower_to_latest
-            or date > borrower_to_latest[borrower]["recordingDate"]
+            or date > borrower_to_latest[borrower]["saleDate"]
         ):
             borrower_to_latest[borrower] = record
     # Map borrower to their last lender

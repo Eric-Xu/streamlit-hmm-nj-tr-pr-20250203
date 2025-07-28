@@ -1,6 +1,8 @@
 from collections import Counter
 from typing import Dict, List, Set, Tuple
 
+import pandas as pd
+
 from utils.borrower import get_borrower_to_last_lender
 
 
@@ -81,6 +83,25 @@ def get_lender_to_borrowers(prepped_data: List[Dict]) -> Dict[str, Set[str]]:
         lender_to_borrowers[lender].add(borrower)
 
     return lender_to_borrowers
+
+
+def get_lender_to_loan_amount_bins(
+    df: pd.DataFrame, bin_edges: List[int], bin_labels: List[str]
+) -> pd.DataFrame:
+    # Make a copy to avoid pandas warning when modifying DataFrame that might be a view/slice
+    df = df.copy()
+    df["loan_amount_bin"] = pd.cut(
+        df["loanAmount"], bins=bin_edges, labels=bin_labels, right=False
+    )
+    # Group by lender and bin, count number of loans
+    grouped = (
+        df.groupby(["lenderName", "loan_amount_bin"], observed=True)
+        .size()
+        .reset_index()
+    )
+    grouped = grouped.rename(columns={0: "num_loans", "lenderName": "lender"})
+
+    return grouped
 
 
 def get_lender_to_lost_borrowers(prepped_data: List[Dict]) -> Dict[str, Set[str]]:

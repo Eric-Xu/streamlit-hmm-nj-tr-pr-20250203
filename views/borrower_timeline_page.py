@@ -8,7 +8,7 @@ from pipelines.prepare_loan_data import prep_data
 from utils.formatting import to_currency
 from utils.gui import show_st_h1, show_st_h2
 from utils.io import load_json
-from utils.party_to_loan_timeline import (
+from utils.party2loan_timeline_net_graph import (
     get_timeline_network_graph_nodes_edges,
     show_timeline_network_graph,
 )
@@ -72,18 +72,16 @@ def _show_df(selected_data: List[Dict]) -> None:
 
     df = pd.DataFrame(selected_data)
 
-    columns_to_keep = ["recordingDate", "lenderName", "loanAmount"]
+    columns_to_keep = ["saleDate", "lenderName", "loanAmount"]
     df = df[columns_to_keep]
     df["loanAmount"] = pd.to_numeric(df["loanAmount"], errors="coerce")
-    df = df.sort_values("recordingDate", ascending=False).reset_index(drop=True)
+    df = df.sort_values("saleDate", ascending=False).reset_index(drop=True)
 
     st.dataframe(
         df,
         use_container_width=True,
         column_config={
-            "recordingDate": st.column_config.TextColumn(
-                "Recording Date", width="small"
-            ),
+            "saleDate": st.column_config.TextColumn("Sale Date", width="small"),
             "lenderName": st.column_config.TextColumn("Lender Name", width="medium"),
             "loanAmount": st.column_config.NumberColumn(
                 "Loan Amount", width="small", format="dollar"
@@ -117,7 +115,7 @@ def _show_introduction() -> None:
 
     st.markdown(
         f"""
-        View any borrower's recorded loan transactions over a 12-month period. 
+        View any borrower's financing activities over a 12-month period. 
         Explore their lender relationships to identify loyal borrowers who 
         consistently use the same funding source versus those who borrow from 
         different lenders each time.
@@ -186,9 +184,10 @@ def _show_network_graph(selected_data: List[Dict]) -> None:
         In this visualization, **purple** shows lenders who have provided multiple 
         loans to the borrower {borrower_name}, while **red** shows one-time lenders. 
         **Yellow** indicates individual loans, and **green** represents the twelve-month 
-        period since the borrower's last recorded loan.
+        period since the borrower's last property purchase date within the provided
+        dataset.
         **Arrows** connect each lender to their respective loans, and each loan to 
-        the month in which it was recorded.
+        the month in which it was originated.
         """
     )
 

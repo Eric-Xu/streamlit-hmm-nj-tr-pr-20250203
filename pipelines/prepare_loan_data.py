@@ -4,12 +4,7 @@ import pandas as pd
 import streamlit as st
 from pandas import DataFrame
 
-from constants.file import (
-    BORROWER_ACTIVITIES_DATA_FILE,
-    DATA_DIR,
-    TMP_DATA_JSON,
-    TMP_DIR,
-)
+from constants.file import DATA_DIR, DATA_FILE, TMP_DATA_JSON, TMP_DIR
 from utils.formatting import to_currency
 from utils.io import load_df
 from utils.outlier_detection import stddev_outlier_strategy
@@ -19,9 +14,7 @@ OUTLIER_STD_DEV_THRESHOLD = 3.0
 
 
 def _load_data() -> DataFrame:
-    borrower_activities_df: DataFrame = load_df(
-        os.path.join(DATA_DIR, BORROWER_ACTIVITIES_DATA_FILE)
-    )
+    borrower_activities_df: DataFrame = load_df(os.path.join(DATA_DIR, DATA_FILE))
     print(f"Number of borrower activity records: {borrower_activities_df.size}")
 
     return borrower_activities_df

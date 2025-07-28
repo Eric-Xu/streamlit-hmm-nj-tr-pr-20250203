@@ -33,8 +33,6 @@ def _show_introduction(prepped_data: List[Dict]) -> None:
     st.markdown(
         f"""
         There are a total of **{unique_lenders}** lenders and **{unique_borrowers}** borrowers.
-
-        *(This data covers loans recorded from **{START_DATE}** to **{END_DATE}**)*.
         """
     )
 

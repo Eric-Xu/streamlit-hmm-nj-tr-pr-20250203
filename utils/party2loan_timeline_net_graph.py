@@ -103,10 +103,10 @@ def _create_loan_date_relationships(
     for datum in data:
         try:
             record_id: str = str(datum.get("id"))
-            recording_date: str = datum.get("recordingDate", None)
-            if not recording_date:
+            sale_date: str = datum.get("saleDate", None)
+            if not sale_date:
                 continue
-            first_of_month = _get_first_of_month(recording_date)
+            first_of_month = _get_first_of_month(sale_date)
             if first_of_month not in month_node_ids:
                 continue
             loan_id: str = f"loan_{record_id}"
@@ -178,12 +178,12 @@ def _create_party_loan_relationships(
 
         # Create loan nodes
         loan_amount: int = int(datum.get("loanAmount", 0))
-        recording_date: str = datum.get("recordingDate", "N/A")
+        sale_date: str = datum.get("saleDate", "N/A")
         address: str = datum.get("address", "N/A")
         loan_currency_amount: str = to_currency(loan_amount)
         loan_node_id: str = f"loan_{record_id}"
         loan_node_title: str = (
-            f"{loan_currency_amount} recorded on {recording_date}\nProperty: {address}"
+            f"Loan Amount: {loan_currency_amount}\nSale Date: {sale_date}\nProperty: {address}"
         )
         nodes.append(
             Node(
@@ -253,14 +253,12 @@ def _get_last_12_months(latest_date: str | None) -> List[date]:
 
 def _get_latest_date(data: List[Dict]) -> str | None:
     """
-    Return the latest 'recordingDate' in YYYY-MM-DD format from data,
+    Return the latest 'saleDate' in YYYY-MM-DD format from data,
     or None if not found.
     """
     if not data:
         return None
-    dates: List[str] = [
-        d["recordingDate"] for d in data if d.get("recordingDate") is not None
-    ]
+    dates: List[str] = [d["saleDate"] for d in data if d.get("saleDate") is not None]
     if not dates:
         return None
 

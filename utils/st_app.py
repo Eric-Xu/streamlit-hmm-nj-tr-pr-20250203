@@ -18,6 +18,7 @@ from constants.file import (
     LENDER_ORIGINATION_TIMELINE_PAGE_FILE,
     LENDER_REPEAT_BORROWERS_PAGE_FILE,
     LOAN_ANALYSIS_PAGE_FILE,
+    MARKET_MONOPOLY_PAGE_FILE,
     PAGE_DIR,
 )
 
@@ -84,7 +85,7 @@ def setup_page_navigation() -> StreamlitPage:
     lender_market_share_page = st.Page(
         os.path.join(PAGE_DIR, LENDER_MARKET_SHARE_PAGE_FILE),
         title="Market Share",
-        icon=":material/incomplete_circle:",
+        icon=":material/clock_loader_10:",
     )
     lender_repeat_borrowers_page = st.Page(
         os.path.join(PAGE_DIR, LENDER_REPEAT_BORROWERS_PAGE_FILE),
@@ -104,12 +105,17 @@ def setup_page_navigation() -> StreamlitPage:
     lender_appeal_page = st.Page(
         os.path.join(PAGE_DIR, LENDER_APPEAL_PAGE_FILE),
         title="(x) Lender Appeal",
-        icon=":material/favorite:",
+        icon=":material/money_bag:",
     )
     lender_origination_timeline_page = st.Page(
         os.path.join(PAGE_DIR, LENDER_ORIGINATION_TIMELINE_PAGE_FILE),
         title="Origination Timeline",
         icon=":material/calendar_month:",
+    )
+    market_monopoly_page = st.Page(
+        os.path.join(PAGE_DIR, MARKET_MONOPOLY_PAGE_FILE),
+        title="(x) Power Concentration",
+        icon=":material/crown:",
     )
 
     pages = {
@@ -130,6 +136,7 @@ def setup_page_navigation() -> StreamlitPage:
             borrower_lenders_page,
             # relationships_page,
         ],
+        "Market Analysis": [market_monopoly_page],
     }
     pg: StreamlitPage = st.navigation(pages)
 

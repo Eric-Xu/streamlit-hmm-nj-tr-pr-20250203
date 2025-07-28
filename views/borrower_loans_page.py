@@ -8,7 +8,7 @@ from pipelines.prepare_loan_data import prep_data
 from utils.formatting import to_currency
 from utils.gui import show_st_h1, show_st_h2
 from utils.io import load_json
-from utils.party_to_loan_relationship import show_relationship_network_graph
+from utils.party2loan_rel_net_graph import show_relationship_network_graph
 
 
 def _get_selected_data(prepped_data: List[Dict], slider_data: Dict) -> List[Dict]:
@@ -98,8 +98,6 @@ def _show_introduction(df: pd.DataFrame) -> None:
 
         To get started, adjust the slider below to filter borrowers by the 
         number of properties they have purchased with loans.
-
-        *(This data covers loans recorded from **{START_DATE}** to **{END_DATE}**)*.
         """
     )
 

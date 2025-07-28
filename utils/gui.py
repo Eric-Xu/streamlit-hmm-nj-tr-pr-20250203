@@ -37,7 +37,7 @@ def show_default_footer() -> None:
     footer_text = f"""
     The data on this page represents loans with the following properties:  
     (a) Location: {LOCATION}
-    (b) Recording Date: {START_DATE} to {END_DATE}
+    (b) Sale Date: {START_DATE} to {END_DATE}
     (c) Property Types: {property_types}
     
     Loans greater than $10 million are excluded. Loans less than $10 million with values beyond 3 standard deviations are also excluded.

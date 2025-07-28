@@ -18,21 +18,21 @@ def get_loan_amounts(prepped_data: List[Dict]) -> List[int]:
 
 def get_monthly_num_loans(prepped_data: List[Dict]) -> List[int]:
     """
-    Counts the number of loans for each month based on the 'recordingDate'
+    Counts the number of loans for each month based on the 'saleDate'
     field in the input data.
     Returns a list of 12 integers, where each element represents the number
-    of loans recorded in that month (index 0 = January, 11 = December).
+    of loans originated in that month (index 0 = January, 11 = December).
     Months with no loans will have a count of 0.
     """
     # Initialize counts for each month (0-11 for Jan-Dec)
     monthly_counts = [0] * 12
 
     for loan in prepped_data:
-        recording_date = loan.get("recordingDate")
-        if recording_date:
+        sale_date = loan.get("saleDate")
+        if sale_date:
             try:
                 # Parse the date string (format: YYYY-MM-DD)
-                date_obj = datetime.strptime(recording_date, "%Y-%m-%d")
+                date_obj = datetime.strptime(sale_date, "%Y-%m-%d")
                 # Get month (0-11, where 0=January)
                 month_index = date_obj.month - 1
                 monthly_counts[month_index] += 1

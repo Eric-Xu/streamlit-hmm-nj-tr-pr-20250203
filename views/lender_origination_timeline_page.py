@@ -15,7 +15,7 @@ from utils.lender import (
     get_lender_to_lost_borrowers,
     get_lender_to_repeat_borrowers,
 )
-from utils.party_to_loan_timeline import (
+from utils.party2loan_timeline_net_graph import (
     NODE_COLOR_CURRENT_ONE_TIME_BORROWER,
     NODE_COLOR_CURRENT_REPEAT_BORROWER,
     NODE_COLOR_LOST_ONE_TIME_BORROWER,
@@ -50,7 +50,7 @@ def _get_df_data(prepped_data: List[Dict], lender: str) -> List[Dict]:
                 "has_churned": "Yes" if last_lender != lender else "",
                 "is_repeat": "Yes" if borrower in repeat_borrowers else "",
                 "loanAmount": record.get("loanAmount"),
-                "recordingDate": record.get("recordingDate"),
+                "saleDate": record.get("saleDate"),
             }
             records.append(row)
 
@@ -106,7 +106,7 @@ def _show_df(prepped_data: List[Dict], lender: str) -> None:
         return
 
     column_order = [
-        "recordingDate",
+        "saleDate",
         "buyerName",
         "is_repeat",
         "has_churned",
@@ -114,7 +114,7 @@ def _show_df(prepped_data: List[Dict], lender: str) -> None:
     ]
     df = pd.DataFrame(records)[column_order].drop_duplicates()
     df["loanAmount"] = pd.to_numeric(df["loanAmount"], errors="coerce")
-    df = df.sort_values("recordingDate", ascending=False).reset_index(drop=True)
+    df = df.sort_values("saleDate", ascending=False).reset_index(drop=True)
 
     st.dataframe(
         df,
@@ -124,7 +124,7 @@ def _show_df(prepped_data: List[Dict], lender: str) -> None:
             "has_churned": st.column_config.TextColumn("Has Churned"),
             "is_repeat": st.column_config.TextColumn("Is Repeat"),
             "loanAmount": st.column_config.NumberColumn("Loan Amount", format="dollar"),
-            "recordingDate": st.column_config.TextColumn("Recording Date"),
+            "saleDate": st.column_config.TextColumn("Sale Date"),
         },
     )
 
@@ -209,9 +209,9 @@ def _show_network_graph(selected_data: List[Dict], lost_borrowers: Set[str]) -> 
         In this visualization, **purple** shows borrowers who have taken out multiple 
         loans from the lender {lender_name}, while **red** shows one-time borrowers. 
         **Yellow** indicates individual loans, and **green** represents the twelve-month 
-        period since the lender's last recorded loan.
+        period since the lender's last loan origination date within the provided dataset.
         **Arrows** connect each borrower to their respective loans, and each loan to 
-        the month in which it was recorded.
+        the month in which it was originated.
         Borrowers on **the right side** are ones who used a different lender to fund
         their latest project.
         """
