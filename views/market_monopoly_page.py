@@ -18,9 +18,9 @@ from utils.market_share_stacked_bar import (
 
 CITY_NUM_LOANS_MIN_THREASHOLD = 20
 BIN_NUM_LOANS_MIN_THREASHOLD = 10
-RADIO_MONOPOLY_SEGMENT = "Top 10 Most Monopolized Market Segments"
-RADIO_DIVERSITY_SEGMENT = "Top 10 Market Segments by Lender Diversity"
-RADIO_ALL_SEGMENT = "All Market Segments"
+HIGH_HHI_SEGMENT = "Top 10 Market Segments by Power Concentration"
+LOW_HHI_SEGMENT = "Top 10 Market Segments by Lender Diversity"
+ALL_SEGMENT = "All Market Segments"
 
 
 def _get_above_threshold_df(df: pd.DataFrame) -> pd.DataFrame:
@@ -53,17 +53,13 @@ def _get_selected_score_records(
         if record["bin_num_loans"] >= selected_min_num_loans
     ]
 
-    if market_category == RADIO_MONOPOLY_SEGMENT:
-        # Sort by highest standard deviation (most monopolized) and take top 10
-        sorted_records = sorted(
-            filtered_records, key=lambda x: x["bin_num_loans_pct_std_dev"], reverse=True
-        )
+    if market_category == HIGH_HHI_SEGMENT:
+        # Sort by highest HHI (most monopolized) and take top 10
+        sorted_records = sorted(filtered_records, key=lambda x: x["hhi"], reverse=True)
         return sorted_records[:10]
-    elif market_category == RADIO_DIVERSITY_SEGMENT:
-        # Sort by lowest standard deviation (most diverse) and take top 10
-        sorted_records = sorted(
-            filtered_records, key=lambda x: x["bin_num_loans_pct_std_dev"]
-        )
+    elif market_category == LOW_HHI_SEGMENT:
+        # Sort by lowest HHI (most diverse) and take top 10
+        sorted_records = sorted(filtered_records, key=lambda x: x["hhi"])
         return sorted_records[:10]
     else:
         order_map = {
@@ -126,6 +122,11 @@ def _get_score_records(
             bin_num_loans_pct_std_dev
         )
 
+        # Calculate the Herfindahl-Hirschman Index (HHI) for each loan_amount_bin
+        hhi_by_bin = lender_to_loan_amount_bins.groupby(
+            "loan_amount_bin", observed=True
+        )["lender_num_loans_pct"].apply(lambda x: (x**2).sum())
+
         # For each unique loan_amount_bin, add a row with city, loan_amount_bin, and bin_num_loans_pct_std_dev
         for bin_value, group in lender_to_loan_amount_bins.groupby(
             "loan_amount_bin", observed=True
@@ -134,12 +135,14 @@ def _get_score_records(
                 continue
             std_dev = group["bin_num_loans_pct_std_dev"].iloc[0]
             bin_num_loans = group["bin_num_loans"].iloc[0]
+            hhi = hhi_by_bin[bin_value]  # Get the HHI specific to this bin
             score_records.append(
                 {
                     "city": city,
                     "loan_amount_bin": bin_value,
                     "bin_num_loans": bin_num_loans,
                     "bin_num_loans_pct_std_dev": std_dev,
+                    "hhi": hhi,
                 }
             )
 
@@ -171,12 +174,12 @@ def _get_stacked_bar_data(df: pd.DataFrame, score_records: List[Dict]) -> pd.Dat
 
 
 def _show_info_stacked_bar(selected_category: str) -> None:
-    if selected_category == RADIO_MONOPOLY_SEGMENT:
-        text = f'"{selected_category}" are the top 10 market segments with the highest market concentration.'
-    elif selected_category == RADIO_DIVERSITY_SEGMENT:
-        text = f"'{selected_category}' are the top 10 market segments with the highest lender diversity."
+    if selected_category == HIGH_HHI_SEGMENT:
+        text = "The chart highlights areas where one or a few lenders dominate originations. These segments have the highest HHI scores, indicating a high degree of market concentration and limited competition. For lenders, this can signal both opportunity and challenge—while entering these markets may require displacing entrenched players, it also suggests the potential for strong pricing power and defensible market share if a competitive foothold is established. These segments often reflect high barriers to entry but may reward strategic investment and differentiated positioning."
+    elif selected_category == LOW_HHI_SEGMENT:
+        text = "This chart highlights the top 10 market segments with the most competitive lending environments. These segments have the lowest HHI scores, indicating that loan originations are distributed across a wide range of lenders, with relatively few lenders dominating the market. High lender diversity suggests healthy competition, greater borrower choice, and potentially lower barriers to entry—making these segments important for assessing both competitive dynamics and expansion opportunities."
     else:
-        text = f"'{selected_category}' are all market segments."
+        text = "This chart displays all market segments, regardless of their HHI score."
 
     st.info(
         f"""
@@ -189,22 +192,26 @@ def _show_info_stacked_bar(selected_category: str) -> None:
 def _show_introduction() -> None:
     st.write(
         """
-        TODO: Add introduction
-    """
+        To assess the concentration of lending power across various market segments, we use the **Herfindahl-Hirschman Index (HHI)**, a widely recognized metric for measuring market concentration. HHI is calculated by summing the squares of each lender’s market share within a defined segment—such as a geographic region or loan size tier. A higher HHI indicates a more concentrated market, potentially limiting competition and borrower choice.
+
+        By applying this measure, we can identify market segments with the greatest potential for growth and lending opportunities.
+        """
     )
 
 
 def _show_df(selected_score_records: List[Dict]) -> None:
+    columns_to_keep = ["city", "loan_amount_bin", "bin_num_loans", "hhi"]
+    df = pd.DataFrame(selected_score_records)
+    df = df[columns_to_keep]
+
     st.dataframe(
-        selected_score_records,
+        df,
         use_container_width=True,
         column_config={
             "city": st.column_config.TextColumn("City"),
             "loan_amount_bin": st.column_config.TextColumn("Loan Amount Bin"),
             "bin_num_loans": st.column_config.NumberColumn("Number of Loans"),
-            "bin_num_loans_pct_std_dev": st.column_config.NumberColumn(
-                "Market Monopoly Score", format="%.2f"
-            ),
+            "hhi": st.column_config.NumberColumn("HHI", format="%.0f"),
         },
     )
 
@@ -224,7 +231,7 @@ def _show_slider(score_records: List[Dict]) -> int:
         step: int = 50
 
     selected_num_loans: int = st.slider(
-        "Select the minimum number of loans per market segment.",
+        "**Select the minimum number of loans per market segment.**",
         min_value,
         max_value,
         default_value,
@@ -247,7 +254,7 @@ def _show_stacked_bar(chart_df: pd.DataFrame) -> None:
 
 def render_page():
     show_st_h1("Market Analysis")
-    show_st_h2(f"Power Concentration - {LOCATION}", w_divider=True)
+    show_st_h2(f"Concentration of Power - {LOCATION}", w_divider=True)
 
     prepped_data_file_path: str = prep_data()
     prepped_data: List[Dict] = load_json(prepped_data_file_path)
@@ -262,14 +269,15 @@ def render_page():
     above_threshold_cities: List[str] = list(above_threshold_df["city"])
     score_records: List[Dict] = _get_score_records(df, above_threshold_cities)
 
-    selected_category: str = st.radio(
-        "Select the category to display.",
-        [RADIO_MONOPOLY_SEGMENT, RADIO_DIVERSITY_SEGMENT, RADIO_ALL_SEGMENT],
+    st.write("")
+    selected_hhi_category: str = st.radio(
+        "**Select the category to display.**",
+        [HIGH_HHI_SEGMENT, LOW_HHI_SEGMENT, ALL_SEGMENT],
     )
     selected_min_num_loans: int = _show_slider(score_records)
 
     selected_score_records: List[Dict] = _get_selected_score_records(
-        score_records, selected_min_num_loans, selected_category
+        score_records, selected_min_num_loans, selected_hhi_category
     )
     if not selected_score_records:
         show_st_info("no_data_selected")
@@ -278,6 +286,7 @@ def render_page():
 
     st.write("")
     st.write("")
+    st.markdown(f"#### {selected_hhi_category}")
     chart_df: pd.DataFrame = _get_stacked_bar_data(df, selected_score_records)
     _show_stacked_bar(chart_df)
 
@@ -285,7 +294,7 @@ def render_page():
     if show_chart_data:
         _show_df(selected_score_records)
 
-    _show_info_stacked_bar(selected_category)
+    _show_info_stacked_bar(selected_hhi_category)
 
     show_default_footer()
 
