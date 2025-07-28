@@ -1,4 +1,4 @@
-from constants.dataset import LOCATION
+from constants.dataset import LOC_SLUG
 
 # --- APP ASSETS ---
 CSS_DIR = "css"
@@ -25,24 +25,24 @@ MARKET_MONOPOLY_PAGE_FILE = "market_monopoly_page.py"
 # --- DATA FILES ---
 DATA_DIR = "data"
 
-DATASET_LOCATION_TO_FILE = {
-    "CA, Los Angeles": "ca_la_20240701_20250630.csv",
-    "DC, Washington": "va_dc_20240701_20250630.csv",
-    "DE": "de_20240701_20250630.csv",
-    "FL, Miami": "fl_mia_20240701_20250630.csv",
-    "GA, Atlanta": "ga_atl_20240701_20250630.csv",
-    "IL, Chicago": "il_chi_20240701_20250630.csv",
-    "MN, Minnesota": "mn_min_20240701_20250630.csv",
-    "NH, MSA-Manchester-Nashua": "nh_msa_man_nas_20240701_20250630.csv",
-    "PA, Philadelphia": "pa_phl_20240701_20250630.csv",
-    "RI, Providence": "ri_pvd_20240701_20250630.csv",
-    "TX, Arlington": "tx_arl_20240701_20250630.csv",
-    "TX, Dallas": "tx_dal_20240701_20250630.csv",
-    "TX, El Paso": "tx_elp_20240701_20250630.csv",
-    "WA, Seattle": "wa_sea_20240701_20250630.csv",
-    "WY-MSA, Cheyenne": "wy_msa_chy_20240701_20250630.csv",
+LOC_SLUG_TO_FILE = {
+    "ca_la": "ca_la_20240701_20250630.csv",
+    "dc_wa": "va_dc_20240701_20250630.csv",
+    "de": "de_20240701_20250630.csv",
+    "fl_mia": "fl_mia_20240701_20250630.csv",
+    "ga_atl": "ga_atl_20240701_20250630.csv",
+    "il_chi": "il_chi_20240701_20250630.csv",
+    "mn_min": "mn_min_20240701_20250630.csv",
+    "nh_msa_man_nas": "nh_msa_man_nas_20240701_20250630.csv",
+    "pa_phl": "pa_phl_20240701_20250630.csv",
+    "ri_pvd": "ri_pvd_20240701_20250630.csv",
+    "tx_arl": "tx_arl_20240701_20250630.csv",
+    "tx_dal": "tx_dal_20240701_20250630.csv",
+    "tx_elp": "tx_elp_20240701_20250630.csv",
+    "wa_sea": "wa_sea_20240701_20250630.csv",
+    "wy_msa_chy": "wy_msa_chy_20240701_20250630.csv",
 }
-DATA_FILE = DATASET_LOCATION_TO_FILE[LOCATION]
+DATA_FILE = LOC_SLUG_TO_FILE[LOC_SLUG]
 
 # --- TEMP FILES ---
 TMP_DIR = "tmp"

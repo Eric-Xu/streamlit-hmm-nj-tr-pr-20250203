@@ -216,6 +216,35 @@ def _show_df(selected_score_records: List[Dict]) -> None:
     )
 
 
+def _show_metrics_selected_data(selected_score_records: List[Dict]) -> None:
+    # Find max and min HHI values efficiently
+    max_hhi_value = max(record["hhi"] for record in selected_score_records)
+    min_hhi_value = min(record["hhi"] for record in selected_score_records)
+
+    # Find the corresponding records
+    max_hhi_record = next(
+        record for record in selected_score_records if record["hhi"] == max_hhi_value
+    )
+    min_hhi_record = next(
+        record for record in selected_score_records if record["hhi"] == min_hhi_value
+    )
+
+    max_hhi_label = f"  {max_hhi_record['city']}{LABEL_SEPARATOR}{max_hhi_record['loan_amount_bin']}"
+    min_hhi_label = f"  {min_hhi_record['city']}{LABEL_SEPARATOR}{min_hhi_record['loan_amount_bin']}"
+
+    col1, col2 = st.columns(2)
+    col1.metric(
+        f"**Highest HHI Score**```{max_hhi_label}```",
+        f"{max_hhi_value:,.0f}",
+        border=True,
+    )
+    col2.metric(
+        f"**Lowest HHI Score**```{min_hhi_label}```",
+        f"{min_hhi_value:,.0f}",
+        border=True,
+    )
+
+
 def _show_slider(score_records: List[Dict]) -> int:
     max_bin_num_loans: int = max(record["bin_num_loans"] for record in score_records)
     max_value: int = math.ceil(max_bin_num_loans / 10) * 10
@@ -285,8 +314,12 @@ def render_page():
         return
 
     st.write("")
-    st.write("")
     st.markdown(f"#### {selected_hhi_category}")
+
+    st.write("")
+    _show_metrics_selected_data(selected_score_records)
+
+    st.write("")
     chart_df: pd.DataFrame = _get_stacked_bar_data(df, selected_score_records)
     _show_stacked_bar(chart_df)
 
