@@ -16,10 +16,10 @@ from utils.market_share_stacked_bar import (
     show_lender_market_share_stacked_bar,
 )
 
-CITY_NUM_LOANS_MIN_THREASHOLD = 20
+CITY_NUM_LOANS_MIN_THREASHOLD = 10
 BIN_NUM_LOANS_MIN_THREASHOLD = 10
-HIGH_HHI_SEGMENT = "Top 10 Market Segments by Power Concentration"
-LOW_HHI_SEGMENT = "Top 10 Market Segments by Lender Diversity"
+HIGH_HHI_SEGMENT = "Top 10 Segments by Market Concentration"
+LOW_HHI_SEGMENT = "Top 10 Most Fragmented Market Segments"
 ALL_SEGMENT = "All Market Segments"
 
 
@@ -175,11 +175,11 @@ def _get_stacked_bar_data(df: pd.DataFrame, score_records: List[Dict]) -> pd.Dat
 
 def _show_info_stacked_bar(selected_category: str) -> None:
     if selected_category == HIGH_HHI_SEGMENT:
-        text = "The chart highlights areas where one or a few lenders dominate originations. These segments have the highest HHI scores, indicating a high degree of market concentration and limited competition. For lenders, this can signal both opportunity and challenge—while entering these markets may require displacing entrenched players, it also suggests the potential for strong pricing power and defensible market share if a competitive foothold is established. These segments often reflect high barriers to entry but may reward strategic investment and differentiated positioning."
+        text = "The chart highlights market segments where one or a few lenders dominate originations. The segments with the highest HHI, sorted top-down in descending order, indicate a high degree of market concentration and limited competition. For lenders, this can signal both opportunity and challenge—while entering these markets may require displacing entrenched players, it also suggests the potential for strong pricing power and defensible market share if a competitive foothold is established. These segments often reflect high barriers to entry but may reward strategic investment and differentiated positioning."
     elif selected_category == LOW_HHI_SEGMENT:
-        text = "This chart highlights the top 10 market segments with the most competitive lending environments. These segments have the lowest HHI scores, indicating that loan originations are distributed across a wide range of lenders, with relatively few lenders dominating the market. High lender diversity suggests healthy competition, greater borrower choice, and potentially lower barriers to entry—making these segments important for assessing both competitive dynamics and expansion opportunities."
+        text = "This chart highlights the top 10 market segments with the most competitive lending environments. The segments with the lowest HHI, sorted top-down in ascending order, indicate that loan originations are distributed across a wide range of lenders, with relatively few lenders dominating the market. High lender diversity suggests healthy competition, greater borrower choice, and potentially lower barriers to entry—making these segments important for assessing both competitive dynamics and expansion opportunities."
     else:
-        text = "This chart displays all market segments, regardless of their HHI score."
+        text = "The chart presents all market segments, sorted by loan amount category."
 
     st.info(
         f"""
@@ -190,9 +190,9 @@ def _show_info_stacked_bar(selected_category: str) -> None:
 
 
 def _show_introduction() -> None:
-    st.write(
+    st.markdown(
         """
-        To assess the concentration of lending power across various market segments, we use the **Herfindahl-Hirschman Index (HHI)**, a widely recognized metric for measuring market concentration. HHI is calculated by summing the squares of each lender’s market share within a defined segment—such as a geographic region or loan size tier. A higher HHI indicates a more concentrated market, potentially limiting competition and borrower choice.
+        To assess the concentration of lending power across various market segments, we use the **[Herfindahl-Hirschman Index](https://www.justice.gov/atr/herfindahl-hirschman-index) (HHI)**, a widely recognized metric for measuring market concentration. HHI is calculated by summing the squares of each lender’s market share within a defined segment—such as a geographic region or loan size tier. A higher HHI indicates a more concentrated market, potentially limiting competition and borrower choice.
 
         By applying this measure, we can identify market segments with the greatest potential for growth and lending opportunities.
         """
@@ -234,14 +234,16 @@ def _show_metrics_selected_data(selected_score_records: List[Dict]) -> None:
 
     col1, col2 = st.columns(2)
     col1.metric(
-        f"**Highest HHI Score**```{max_hhi_label}```",
+        f"**Highest HHI**```{max_hhi_label}```",
         f"{max_hhi_value:,.0f}",
         border=True,
+        height="stretch",
     )
     col2.metric(
-        f"**Lowest HHI Score**```{min_hhi_label}```",
+        f"**Lowest HHI**```{min_hhi_label}```",
         f"{min_hhi_value:,.0f}",
         border=True,
+        height="stretch",
     )
 
 
@@ -283,7 +285,7 @@ def _show_stacked_bar(chart_df: pd.DataFrame) -> None:
 
 def render_page():
     show_st_h1("Market Analysis")
-    show_st_h2(f"Concentration of Power - {LOCATION}", w_divider=True)
+    show_st_h2(f"Market Concentration - {LOCATION}", w_divider=True)
 
     prepped_data_file_path: str = prep_data()
     prepped_data: List[Dict] = load_json(prepped_data_file_path)

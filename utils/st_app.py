@@ -114,7 +114,7 @@ def setup_page_navigation() -> StreamlitPage:
     )
     market_monopoly_page = st.Page(
         os.path.join(PAGE_DIR, MARKET_MONOPOLY_PAGE_FILE),
-        title="Concentration of Power",
+        title="Market Concentration",
         icon=":material/crown:",
     )
 
