@@ -276,16 +276,19 @@ def _get_party_node_x_value(
     preventing the chart from jumping or rerendering unpredictably. For repeat
     borrowers, a fixed x position is used.
     """
+    spread = 0
     if party_num_loans > 1:
-        return NODE_X_VALUE_CURRENT_REPEAT_BORROWER
-
-    base = NODE_X_VALUE_CURRENT_ONE_TIME_BORROWER
-    if unique_members > 100:
-        spread = 75
-    elif unique_members > 20:
-        spread = 50
+        base = NODE_X_VALUE_CURRENT_REPEAT_BORROWER
+        if unique_members > 10:
+            spread = 25
     else:
-        spread = 0
+        base = NODE_X_VALUE_CURRENT_ONE_TIME_BORROWER
+        if unique_members > 100:
+            spread = 75
+        elif unique_members > 20:
+            spread = 50
+        else:
+            spread = 0
 
     if spread > 0:
         rng = random.Random(member_name)
