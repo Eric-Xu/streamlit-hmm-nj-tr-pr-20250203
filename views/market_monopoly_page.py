@@ -98,6 +98,12 @@ def _get_score_records(
         lender_to_loan_amount_bins: pd.DataFrame = get_lender_to_loan_amount_bins(
             city_df, bin_edges, bin_labels
         )
+        # Add a column 'bin_num_lenders' that counts unique lenders for each loan_amount_bin
+        bin_num_lenders = lender_to_loan_amount_bins.groupby(
+            "loan_amount_bin", observed=True
+        )["lender"].transform("nunique")
+        lender_to_loan_amount_bins["bin_num_lenders"] = bin_num_lenders
+
         # Add a column 'bin_num_loans' that sums num_loans for each loan_amount_bin
         bin_num_loans = lender_to_loan_amount_bins.groupby(
             "loan_amount_bin", observed=True
@@ -135,14 +141,25 @@ def _get_score_records(
                 continue
             std_dev = group["bin_num_loans_pct_std_dev"].iloc[0]
             bin_num_loans = group["bin_num_loans"].iloc[0]
+            bin_num_lenders = group["bin_num_lenders"].iloc[0]
+
+            # Skip if we have invalid data
+            if pd.isna(bin_num_lenders) or pd.isna(bin_num_loans):
+                loans_per_lender = 0
+            else:
+                loans_per_lender = (
+                    bin_num_loans / bin_num_lenders if bin_num_lenders > 0 else 0
+                )
             hhi = hhi_by_bin[bin_value]  # Get the HHI specific to this bin
             score_records.append(
                 {
                     "city": city,
-                    "loan_amount_bin": bin_value,
+                    "bin_num_lenders": bin_num_lenders,
                     "bin_num_loans": bin_num_loans,
                     "bin_num_loans_pct_std_dev": std_dev,
                     "hhi": hhi,
+                    "loan_amount_bin": bin_value,
+                    "loans_per_lender": loans_per_lender,
                 }
             )
 
@@ -200,18 +217,30 @@ def _show_introduction() -> None:
 
 
 def _show_df(selected_score_records: List[Dict]) -> None:
-    columns_to_keep = ["city", "loan_amount_bin", "bin_num_loans", "hhi"]
+    column_order = [
+        "city",
+        "loan_amount_bin",
+        "hhi",
+        "bin_num_loans",
+        "bin_num_lenders",
+        "loans_per_lender",
+    ]
     df = pd.DataFrame(selected_score_records)
-    df = df[columns_to_keep]
+    df = df[column_order]
 
     st.dataframe(
         df,
         use_container_width=True,
+        hide_index=True,
         column_config={
-            "city": st.column_config.TextColumn("City"),
-            "loan_amount_bin": st.column_config.TextColumn("Loan Amount Bin"),
+            "bin_num_lenders": st.column_config.NumberColumn("Number of Lenders"),
             "bin_num_loans": st.column_config.NumberColumn("Number of Loans"),
+            "city": st.column_config.TextColumn("City"),
             "hhi": st.column_config.NumberColumn("HHI", format="%.0f"),
+            "loan_amount_bin": st.column_config.TextColumn("Loan Amount Bin"),
+            "loans_per_lender": st.column_config.NumberColumn(
+                "Loans Per Lender", format="%.1f"
+            ),
         },
     )
 
@@ -248,8 +277,20 @@ def _show_metrics_selected_data(selected_score_records: List[Dict]) -> None:
 
 
 def _show_slider(score_records: List[Dict]) -> int:
-    max_bin_num_loans: int = max(record["bin_num_loans"] for record in score_records)
-    max_value: int = math.ceil(max_bin_num_loans / 10) * 10
+    bin_num_loans_values = sorted(
+        set(record["bin_num_loans"] for record in score_records), reverse=True
+    )
+    second_highest_bin_num_loans: int = (
+        bin_num_loans_values[1]
+        if len(bin_num_loans_values) > 1
+        else bin_num_loans_values[0]
+    )
+    """
+    No need to set the max_value to the highest value. It only needs to be
+    slightly higher than the second highest value to match the logic in
+    _get_selected_score_records().
+    """
+    max_value: int = math.ceil((second_highest_bin_num_loans + 10) / 10) * 10
     min_value: int = BIN_NUM_LOANS_MIN_THREASHOLD
     default_value: int = min_value
     if max_value <= 20:
