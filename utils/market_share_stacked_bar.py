@@ -5,8 +5,7 @@ import pandas as pd
 import streamlit as st
 
 BIN_EDGE_TO_LABEL = {
-    50_000: "$0 - $50K",
-    100_000: "$50K - $100K",
+    100_000: "$0 - $100K",
     250_000: "$100K - $250K",
     500_000: "$250K - $500K",
     1_000_000: "$500K - $1M",
@@ -15,21 +14,29 @@ BIN_EDGE_TO_LABEL = {
     10_000_000: "$5M - $10M",
 }
 BIN_EDGE_TO_UNDER_LABEL = {
-    50_000: "Under $50K",
     100_000: "Under $100K",
     250_000: "Under $250K",
     500_000: "Under $500K",
     1_000_000: "Under $1M",
 }
 BIN_EDGE_TO_OVER_LABEL = {
-    250_000: "Over $250K",
+    250_000: "Over $100K",
     500_000: "Over $250K",
     1_000_000: "Over $500K",
     2_500_000: "Over $1M",
     5_000_000: "Over $2.5M",
     10_000_000: "Over $5M",
 }
-LABEL_SEPARATOR = "  |  "
+BIN_LABEL_ORDER_MAP = {
+    "$5M - $10M": 1,
+    "$2.5M - $5M": 2,
+    "$1M - $2.5M": 3,
+    "$500K - $1M": 4,
+    "$250K - $500K": 5,
+    "$100K - $250K": 6,
+    "$0 - $100K": 7,
+}
+BIN_LABEL_SEPARATOR = "  |  "
 
 
 def _get_max_bin_edge(df: pd.DataFrame, bin_edges: List[int], min_count: int) -> int:

@@ -1,9 +1,11 @@
 # LOC_SLUG = "ca_la"
 # LOC_SLUG = "dc_wa"
 # LOC_SLUG = "de"
-LOC_SLUG = "fl_mia"
+# LOC_SLUG = "fl_mia"
 # LOC_SLUG = "ga_atl"
+# LOC_SLUG = "ga_msa_atl_ss_ros"
 # LOC_SLUG = "il_chi"
+# LOC_SLUG = "md"
 # LOC_SLUG = "mn_min"
 # LOC_SLUG = "nh_msa_man_nas"
 # LOC_SLUG = "pa_phl"
@@ -13,6 +15,7 @@ LOC_SLUG = "fl_mia"
 # LOC_SLUG = "tx_elp"
 # LOC_SLUG = "wa_sea"
 # LOC_SLUG = "wy_msa_chy"
+LOC_SLUG = "custom"
 
 LOC_SLUG_TO_LOCATION = {
     "ca_la": "Los Angeles, CA",
@@ -20,7 +23,9 @@ LOC_SLUG_TO_LOCATION = {
     "de": "Delaware",
     "fl_mia": "Miami, FL",
     "ga_atl": "Atlanta, GA",
+    "ga_msa_atl_ss_ros": "MSA Atlanta-Sandy Springs-Roswell, GA",
     "il_chi": "Chicago, IL",
+    "md": "Maryland",
     "mn_min": "Minneapolis, MN",
     "nh_msa_man_nas": "MSA Manchester-Nashua, NH",
     "pa_phl": "Philadelphia, PA",
@@ -30,6 +35,8 @@ LOC_SLUG_TO_LOCATION = {
     "tx_elp": "El Paso, TX",
     "wa_sea": "Seattle, WA",
     "wy_msa_chy": "MSA Cheyenne, WY",
+    # "custom": "Indiana MSAs Elkhart-Goshen, Michigan City-La Porte, Plymouth, Niles, South Bend-Mishawaka, Sturgis, Warsaw",
+    "custom": "Michigan MSAs Bay City, Big Rapids, Grand Rapids-Wyoming-Kentwood, Lansing-East Lansing, Midland, Mount Pleasant, Saginaw",
 }
 LOCATION = LOC_SLUG_TO_LOCATION[LOC_SLUG]
 

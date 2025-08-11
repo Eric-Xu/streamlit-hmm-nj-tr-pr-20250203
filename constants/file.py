@@ -31,7 +31,9 @@ LOC_SLUG_TO_FILE = {
     "de": "de_20240701_20250630.csv",
     "fl_mia": "fl_mia_20240701_20250630.csv",
     "ga_atl": "ga_atl_20240701_20250630.csv",
+    "ga_msa_atl_ss_ros": "ga_msa_atl_ss_ros_20240701_20250630.csv",
     "il_chi": "il_chi_20240701_20250630.csv",
+    "md": "md_20240701_20250630.csv",
     "mn_min": "mn_min_20240701_20250630.csv",
     "nh_msa_man_nas": "nh_msa_man_nas_20240701_20250630.csv",
     "pa_phl": "pa_phl_20240701_20250630.csv",
@@ -41,6 +43,7 @@ LOC_SLUG_TO_FILE = {
     "tx_elp": "tx_elp_20240701_20250630.csv",
     "wa_sea": "wa_sea_20240701_20250630.csv",
     "wy_msa_chy": "wy_msa_chy_20240701_20250630.csv",
+    "custom": "mi_custom_20240701_20250630.csv",
 }
 DATA_FILE = LOC_SLUG_TO_FILE[LOC_SLUG]
 

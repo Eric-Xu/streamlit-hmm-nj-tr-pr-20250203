@@ -102,7 +102,7 @@ def _create_loan_date_relationships(
     # Create loan-to-month relationships with error handling
     for datum in data:
         try:
-            record_id: str = str(datum.get("id"))
+            record_id: str = str(datum.get("sfra_id"))
             sale_date: str = datum.get("saleDate", None)
             if not sale_date:
                 continue
@@ -141,7 +141,7 @@ def _create_party_loan_relationships(
     mass: float = _get_scaled_mass(unique_members)
 
     for datum in data:
-        record_id: str = str(datum.get("id"))
+        record_id: str = str(datum.get("sfra_id"))
         party_node_id: str = f"{party}_{record_id}"
         member_name: str = datum.get(party_dataset_key, "N/A")
         party_node_title: str = f"{party.capitalize()}: {member_name}"

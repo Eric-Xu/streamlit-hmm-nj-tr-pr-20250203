@@ -174,7 +174,7 @@ def _get_network_graph_nodes_edges(
         borrower = record.get("buyerName")
         if borrower not in lost_borrowers:
             continue
-        record_id = str(record.get("id"))
+        record_id = str(record.get("sfra_id"))
         lost_borrower_node_id: str = f"{party}_{record_id}"
         for node in nodes:
             if (

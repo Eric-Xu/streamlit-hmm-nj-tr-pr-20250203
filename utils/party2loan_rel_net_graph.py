@@ -28,7 +28,7 @@ def _create_party_loan_relationships(
 
     # Create nodes and edges of the network graph
     for datum in data:
-        record_id: str = str(datum.get("id"))
+        record_id: str = str(datum.get("sfra_id"))
         member_name: str = datum.get(party_dataset_key, "N/A")
         num_loans: int = datum.get(f"{party}_num_loans", 0)
         party_node_title: str = f"{party.capitalize()}: {member_name}"

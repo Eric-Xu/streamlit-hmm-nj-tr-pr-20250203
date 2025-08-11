@@ -88,6 +88,12 @@ def get_lender_to_borrowers(prepped_data: List[Dict]) -> Dict[str, Set[str]]:
 def get_lender_to_loan_amount_bins(
     df: pd.DataFrame, bin_edges: List[int], bin_labels: List[str]
 ) -> pd.DataFrame:
+    """
+    Returns a DataFrame with the following columns:
+    - lender: str ("KIAVI FUNDING INC)
+    - loan_amount_bin: str ("$100K - $250K")
+    - num_loans: int (10)
+    """
     # Make a copy to avoid pandas warning when modifying DataFrame that might be a view/slice
     df = df.copy()
     df["loan_amount_bin"] = pd.cut(

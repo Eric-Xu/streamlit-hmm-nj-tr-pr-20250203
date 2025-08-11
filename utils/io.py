@@ -9,7 +9,7 @@ from utils.path import append_file_path
 
 def load_df(path: str, sep=",", fillna="None") -> DataFrame:
     try:
-        df = pd.read_csv(path, sep=sep, dtype=str)
+        df = pd.read_csv(path, sep=sep, dtype=str, comment="#")
         df = df.fillna(fillna)
     except FileNotFoundError as e:
         print(f"Error: {e}")

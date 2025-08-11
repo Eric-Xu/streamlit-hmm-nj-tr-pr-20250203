@@ -11,13 +11,12 @@ from utils.io import load_json
 from utils.lender import get_lender_to_loan_amount_bins
 from utils.market_share_stacked_bar import (
     BIN_EDGE_TO_LABEL,
-    LABEL_SEPARATOR,
+    BIN_LABEL_ORDER_MAP,
+    BIN_LABEL_SEPARATOR,
     get_edge_range,
     show_lender_market_share_stacked_bar,
 )
 
-CITY_NUM_LOANS_MIN_THREASHOLD = 10
-BIN_NUM_LOANS_MIN_THREASHOLD = 10
 HIGH_HHI_SEGMENT = "Top 10 Segments by Market Concentration"
 LOW_HHI_SEGMENT = "Top 10 Most Fragmented Market Segments"
 ALL_SEGMENT = "All Market Segments"
@@ -30,18 +29,33 @@ def _get_above_threshold_df(df: pd.DataFrame) -> pd.DataFrame:
     city_loan_counts = city_loan_counts.reset_index()
 
     # Split city_loan_counts into two DataFrames based on the threshold
+    city_num_loans_min_threshold = _get_city_num_loans_min_threshold(len(df))
     below_threshold = city_loan_counts[
-        city_loan_counts["loan_count"] < CITY_NUM_LOANS_MIN_THREASHOLD
+        city_loan_counts["loan_count"] < city_num_loans_min_threshold
     ]
     above_or_equal_threshold = city_loan_counts[
-        city_loan_counts["loan_count"] >= CITY_NUM_LOANS_MIN_THREASHOLD
+        city_loan_counts["loan_count"] >= city_num_loans_min_threshold
     ]
 
-    print(f"Disregard cities with loan counts < {CITY_NUM_LOANS_MIN_THREASHOLD}")
+    print(f"Disregard cities with loan counts < {city_num_loans_min_threshold}")
     for _, row in below_threshold.iterrows():
         print(f"{row['city']}: {row['loan_count']}")
 
     return above_or_equal_threshold
+
+
+def _get_bin_num_loans_min_threshold(record_count: int) -> int:
+    if record_count < 500:
+        return 10
+    else:
+        return 20
+
+
+def _get_city_num_loans_min_threshold(record_count: int) -> int:
+    if record_count < 500:
+        return 10
+    else:
+        return 20
 
 
 def _get_selected_score_records(
@@ -62,18 +76,9 @@ def _get_selected_score_records(
         sorted_records = sorted(filtered_records, key=lambda x: x["hhi"])
         return sorted_records[:10]
     else:
-        order_map = {
-            "$5M - $10M": 1,
-            "$2.5M - $5M": 2,
-            "$1M - $2.5M": 3,
-            "$500K - $1M": 4,
-            "$250K - $500K": 5,
-            "$100K - $250K": 6,
-            "$50K - $100K": 7,
-            "$0 - $50K": 8,
-        }
         sorted_records = sorted(
-            filtered_records, key=lambda x: order_map.get(x["loan_amount_bin"], 999)
+            filtered_records,
+            key=lambda x: BIN_LABEL_ORDER_MAP.get(x["loan_amount_bin"], 999),
         )
         return sorted_records
 
@@ -91,6 +96,8 @@ def _get_score_records(
     bin_labels: List[str] = [
         BIN_EDGE_TO_LABEL[edge] for edge in sorted(BIN_EDGE_TO_LABEL.keys())
     ]
+
+    bin_num_loans_min_threshold = _get_bin_num_loans_min_threshold(len(df))
 
     # for each city:
     score_records: List[Dict] = []
@@ -116,8 +123,9 @@ def _get_score_records(
             * 100
         )
 
+        # Only keep bins with sufficient lending activity
         lender_to_loan_amount_bins = lender_to_loan_amount_bins[
-            lender_to_loan_amount_bins["bin_num_loans"] >= BIN_NUM_LOANS_MIN_THREASHOLD
+            lender_to_loan_amount_bins["bin_num_loans"] >= bin_num_loans_min_threshold
         ]
 
         # Calculate the standard deviation of lender_num_loans_pct for each loan_amount_bin
@@ -178,7 +186,7 @@ def _get_stacked_bar_data(df: pd.DataFrame, score_records: List[Dict]) -> pd.Dat
         city: str = record["city"]
         loan_amount_bin: str = record["loan_amount_bin"]
         city_level_df: pd.DataFrame = df[df["city"] == city]
-        joined_bin_label = f"{city}{LABEL_SEPARATOR}{loan_amount_bin}"
+        joined_bin_label = f"{city}{BIN_LABEL_SEPARATOR}{loan_amount_bin}"
         bin_edges: Tuple[int, int] = get_edge_range(loan_amount_bin)
         bin_level_df: pd.DataFrame = get_lender_to_loan_amount_bins(
             city_level_df, list(bin_edges), [joined_bin_label]
@@ -258,8 +266,8 @@ def _show_metrics_selected_data(selected_score_records: List[Dict]) -> None:
         record for record in selected_score_records if record["hhi"] == min_hhi_value
     )
 
-    max_hhi_label = f"  {max_hhi_record['city']}{LABEL_SEPARATOR}{max_hhi_record['loan_amount_bin']}"
-    min_hhi_label = f"  {min_hhi_record['city']}{LABEL_SEPARATOR}{min_hhi_record['loan_amount_bin']}"
+    max_hhi_label = f"  {max_hhi_record['city']}{BIN_LABEL_SEPARATOR}{max_hhi_record['loan_amount_bin']}"
+    min_hhi_label = f"  {min_hhi_record['city']}{BIN_LABEL_SEPARATOR}{min_hhi_record['loan_amount_bin']}"
 
     col1, col2 = st.columns(2)
     col1.metric(
@@ -285,13 +293,12 @@ def _show_slider(score_records: List[Dict]) -> int:
         if len(bin_num_loans_values) > 1
         else bin_num_loans_values[0]
     )
-    """
-    No need to set the max_value to the highest value. It only needs to be
-    slightly higher than the second highest value to match the logic in
-    _get_selected_score_records().
-    """
+
+    # No need to set the max_value to the highest value. It only needs to be
+    # slightly higher than the second highest value to match the logic in
+    # _get_selected_score_records().
     max_value: int = math.ceil((second_highest_bin_num_loans + 10) / 10) * 10
-    min_value: int = BIN_NUM_LOANS_MIN_THREASHOLD
+    min_value: int = _get_bin_num_loans_min_threshold(len(score_records))
     default_value: int = min_value
     if max_value <= 20:
         step: int = 1
@@ -303,7 +310,7 @@ def _show_slider(score_records: List[Dict]) -> int:
         step: int = 50
 
     selected_num_loans: int = st.slider(
-        "**Select the minimum number of loans per market segment.**",
+        "**Step 2: Select the minimum number of loans per market segment.**",
         min_value,
         max_value,
         default_value,
@@ -343,7 +350,7 @@ def render_page():
 
     st.write("")
     selected_hhi_category: str = st.radio(
-        "**Select the category to display.**",
+        "**Step 1: Select the category to display.**",
         [HIGH_HHI_SEGMENT, LOW_HHI_SEGMENT, ALL_SEGMENT],
     )
     selected_min_num_loans: int = _show_slider(score_records)
